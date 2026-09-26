@@ -1,0 +1,194 @@
+/* Пустые состояния (макет EmptyStates, фаза 5b) и баннер сигнал-сервера.
+   Иконка в цвете рамки, заголовок, одна строка объяснения и не больше одного
+   действия. Без иллюстраций. */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 10px;
+    padding: 24px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* В макете иконка «в цвете рамки» на тёмном фоне; в светлой теме рамка
+   сливается с серым фоном чата — приглушённый текст с прозрачностью виден
+   в обеих темах. */
+.empty-state .es-icon,
+.empty-state .icon-empty {
+    width: 40px;
+    height: 40px;
+    color: var(--text-muted);
+    opacity: 0.45;
+}
+
+.empty-state .es-title,
+.empty-state > p {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.empty-state .es-text,
+.empty-state > span {
+    max-width: 300px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+.es-btn {
+    margin-top: 6px;
+    height: 36px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--accent-btn-text);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.es-btn:hover {
+    background: var(--accent-hover);
+}
+
+/* В узкой левой панели и во вкладке «Медиа» — меньше воздуха */
+#contacts-list .empty-state {
+    padding: 40px 20px;
+}
+
+.im-body .empty-state {
+    padding: 32px 12px;
+}
+
+/* --- Карточка «Вступить в группу» по ссылке (group-join.js, фаза 5d) --- */
+.join-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 12px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+}
+
+.jc-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-btn-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.jc-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.jc-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.jc-sub {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--text-secondary);
+}
+
+.jc-btn {
+    height: 32px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--accent-btn-text);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.jc-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.jc-btn[hidden] {
+    display: none;
+}
+
+/* --- Баннер «Нет связи с сигнал-сервером»: над списком чатов, не модалка --- */
+.signal-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 12px 0;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: rgba(250, 166, 26, 0.10);
+    border: 1px solid rgba(250, 166, 26, 0.4);
+}
+
+.signal-banner[hidden] {
+    display: none;
+}
+
+.signal-banner .sb-icon {
+    color: #faa61a;
+    flex-shrink: 0;
+}
+
+.sb-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sb-title {
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.sb-desc {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+.sb-retry {
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.sb-retry:hover {
+    text-decoration: underline;
+}

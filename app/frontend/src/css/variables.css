@@ -1,0 +1,75 @@
+:root {
+    /* ---------- Backgrounds ---------- */
+    --bg-app: #f0f2f5;           /* outer app shell, chat background */
+    --bg-panel: #ffffff;         /* cards, sidebars, dialog surfaces */
+    --bg-chat: #e8e8e8;          /* messages pane canvas */
+    --bg-nav: #2b2b2b;           /* dark nav strip — always dark */
+    --bg-nav-hover: #3d3d3d;
+    --input-bg: #f3f4f6;
+
+    /* ---------- Bubbles ---------- */
+    --bubble-out: #5DB5A6;       /* mint — default, per-chat theme overrides */
+    --bubble-out-text: #ffffff;
+    --bubble-in: #ffffff;
+    --bubble-in-text: #1a1a1a;
+
+    /* ---------- Text ---------- */
+    --text-primary: #1a1a1a;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+
+    /* ---------- Accent (Vox mint) ---------- */
+    --accent: #5DB5A6;
+    --accent-hover: #4fa396;
+    --accent-btn-text: #ffffff;
+    --accent-soft: rgba(93, 181, 166, 0.15);  /* focus halo, soft fills */
+
+    /* ---------- Borders ---------- */
+    --border: #e5e7eb;
+
+    /* ---------- Semantic ---------- */
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+
+    /* ---------- Contact list states ---------- */
+    --contact-hover: #f3f4f6;
+    --contact-active: rgba(93, 181, 166, 0.15);
+    --contact-active-text: #1a1a1a;
+    --contact-active-muted: #4a5568;
+
+    /* ---------- Elevation ---------- */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.20);  /* modals only */
+
+    /* ---------- Radii ---------- */
+    --radius-xs: 3px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-full: 50%;
+
+    /* ---------- Spacing ---------- */
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 10px;
+    --space-6: 12px;
+    --space-7: 14px;
+    --space-8: 16px;
+    --space-10: 20px;
+    --space-12: 24px;
+    --space-16: 32px;
+    --space-24: 48px;
+
+    /* ---------- Fonts (Open Sans) ---------- */
+    --font-ui: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'Consolas', 'SF Mono', 'Courier New', monospace;
+
+    /* ---------- Motion ---------- */
+    --dur-fast: 0.15s;   /* hover, focus */
+    --dur-base: 0.2s;    /* panel open/close */
+    --dur-slow: 0.25s;   /* offcanvas slide */
+}

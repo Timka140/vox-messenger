@@ -1,0 +1,245 @@
+/* ========== LIGHTBOX (макет Lightbox, фаза 5b) ==========
+ * Шапка с автором и действиями, круглые стрелки, лента миниатюр, подпись —
+ * текст сообщения. Оверлей на всё окно; Esc или клик мимо фото закрывают.
+ */
+
+.lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: rgba(0, 0, 0, 0.92);
+    display: none;
+    animation: lightbox-fade-in var(--dur-base) ease-out;
+}
+
+.lightbox-overlay.is-open {
+    display: block;
+}
+
+@keyframes lightbox-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.lb-stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 88px 108px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.lightbox-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    background: #000;
+    user-select: none;
+    -webkit-user-drag: none;
+    cursor: zoom-in;
+    transition: transform 0.12s ease-out;
+    transform-origin: center center;
+}
+
+.lightbox-image.zoomed {
+    cursor: grab;
+    transition: none;
+}
+
+/* --- шапка --- */
+.lb-head {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 56px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+    z-index: 1;
+}
+
+.lb-av {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.lb-av[hidden] {
+    display: none;
+}
+
+.lb-who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.lb-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lb-meta {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.lb-spacer {
+    flex: 1;
+}
+
+.lb-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.lb-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.lb-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.lb-btn.on {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.lb-btn[hidden] {
+    display: none;
+}
+
+/* --- стрелки --- */
+.lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid #3A3E47;
+    background: rgba(46, 50, 59, 0.85);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.lightbox-nav:hover {
+    background: rgba(58, 62, 71, 0.95);
+}
+
+.lightbox-nav:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.lightbox-nav[hidden] {
+    display: none;
+}
+
+.lightbox-prev { left: 24px; }
+.lightbox-next { right: 24px; }
+
+/* --- подпись и лента --- */
+.lightbox-caption {
+    position: absolute;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%);
+    max-width: 70vw;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 12px;
+    text-align: center;
+    word-break: break-word;
+    z-index: 1;
+}
+
+.lightbox-caption[hidden] {
+    display: none;
+}
+
+.lb-strip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 84px;
+    display: flex;
+    align-items: center;
+    justify-content: safe center;
+    gap: 4px;
+    padding: 0 16px;
+    overflow-x: auto;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+    z-index: 1;
+}
+
+.lb-strip[hidden] {
+    display: none;
+}
+
+.lb-thumb {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #2e323b;
+    opacity: 0.7;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.lb-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lb-thumb.current {
+    width: 56px;
+    height: 56px;
+    opacity: 1;
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Меню «Ещё» лайтбокса открывается поверх него (у меню z-index 200). */
+.context-menu {
+    z-index: 600;
+}

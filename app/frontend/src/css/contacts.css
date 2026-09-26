@@ -1,0 +1,405 @@
+/* ========== CONTACTS PANEL ========== */
+#contacts-panel {
+    width: 320px;
+    background: var(--bg-panel);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.contacts-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.search-wrap {
+    flex: 1;
+    position: relative;
+}
+
+.search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+#search-input {
+    width: 100%;
+    padding: 8px 12px 8px 34px;
+    background: var(--input-bg);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+#search-input:focus {
+    border-color: var(--accent);
+}
+
+#search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.compose-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+}
+
+.compose-btn:hover {
+    background: var(--input-bg);
+    color: var(--accent);
+}
+
+/* --- Contact List --- */
+#contacts-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid var(--border);
+}
+
+.contact-item:last-child {
+    border-bottom: none;
+}
+
+.contact-item:hover {
+    background: var(--contact-hover);
+}
+
+.contact-item.active {
+    background: var(--contact-active);
+}
+
+.contact-item.active .contact-name {
+    color: var(--contact-active-text);
+}
+
+.contact-item.active .contact-time {
+    color: var(--contact-active-muted);
+}
+
+.contact-item.active .contact-preview {
+    color: var(--contact-active-muted);
+}
+
+.contact-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    position: relative;
+}
+
+.avatar-online-dot {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #3ba55c;
+    border: 2px solid var(--bg-panel);
+}
+
+.contact-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.contact-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.contact-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-time {
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+/* «Без звука» (mute.js) — сразу за именем; auto-отступ уводит время вправо,
+   иначе space-between ставит значок посередине строки. */
+.contact-muted {
+    flex-shrink: 0;
+    align-self: center;
+    margin-left: 4px;
+    margin-right: auto;
+    color: var(--text-muted);
+}
+
+.contact-item.active .contact-muted {
+    color: var(--contact-active-muted);
+}
+
+.contact-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.contact-preview {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.unread-badge {
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--green);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.contacts-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+    text-align: center;
+    gap: 8px;
+}
+
+/* --- User Bar --- */
+#user-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-panel);
+}
+
+.user-bar-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+/* User-bar states */
+.user-bar-state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.user-bar-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.user-bar-info #username {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-primary);
+}
+
+.user-bar-dot {
+    color: var(--text-muted);
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.user-bar-status {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* Call state */
+.user-bar-call-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: call-pulse 1.5s infinite;
+    flex-shrink: 0;
+}
+
+@keyframes call-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+#user-bar-call {
+    cursor: pointer;
+}
+
+#user-bar-call-timer {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+#user-bar-call-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Voice channel state */
+#user-bar-voice {
+    color: var(--green);
+}
+
+#user-bar-voice-name {
+    font-size: 13px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--green);
+}
+
+/* Превью последнего сообщения (фаза 6c, callfmt.js renderLastMessagePreview):
+   автор в группах — мятным жирным, «Вы:» приглушённо, пропущенный звонок — красным. */
+.contact-preview-author { color: var(--accent); font-weight: 600; }
+.contact-preview-author.is-me { color: var(--text-secondary); font-weight: 500; }
+.contact-preview.is-missed { color: var(--red); }
+
+/* Закреплённый чат (фаза 7a): булавка у имени, как «Без звука». Время
+   прижато вправо: auto-отступ у последнего из значков. */
+.contact-pinned {
+    flex-shrink: 0;
+    align-self: center;
+    margin-left: 4px;
+    margin-right: auto;
+    color: var(--text-muted);
+}
+.contact-muted:has(+ .contact-pinned) { margin-right: 0; }
+.contact-item.active .contact-pinned { color: var(--contact-active-muted); }
+
+/* «Уведомления от этого контакта» в профиле друга (фаза 7a) */
+.profile-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-panel);
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+/* «Цвет чата» в панели «Инфо»: кружок текущего цвета + стрелка */
+.ip-color-val { display: inline-flex; align-items: center; gap: 6px; }
+.ip-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+/* Заблокированный (фаза 7b): значок у имени */
+.contact-blocked {
+    flex-shrink: 0;
+    align-self: center;
+    margin-left: 4px;
+    margin-right: auto;
+    color: var(--red);
+}
+.contact-muted:has(~ .contact-blocked),
+.contact-pinned:has(+ .contact-blocked) { margin-right: 0; }
+
+/* Список «Заблокированные» в настройках */
+.bl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 4px;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+.bl-unblock {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.blocked-list-row { cursor: pointer; }

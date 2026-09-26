@@ -1,0 +1,5 @@
+[submodule "app/internal/audio/rnnoise"]
+	path = app/internal/audio/rnnoise
+	url = https://github.com/xiph/rnnoise.git
+	# веса модели (models/, src/rnnoise_data*.c) скачиваются download_model.sh и не входят в upstream — не считать их изменением
+	ignore = untracked

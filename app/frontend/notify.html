@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Vox notifications</title>
+    <style>
+        /* Токены — копия variables.css / themes/dark.css (страница живёт в
+           отдельном окне и не грузит общие стили). Тема приходит с каждым
+           уведомлением (req.theme) и ставится на <html>. */
+        :root {
+            --bg-panel: #ffffff;
+            --bg-app: #f0f2f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --border: #e5e7eb;
+            --accent: #5DB5A6;
+            --accent-soft: rgba(93, 181, 166, 0.15);
+            --green: #22c55e;
+            --red: #ef4444;
+            --hover: #f3f4f6;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.20);
+        }
+        html[data-theme="dark"] {
+            --bg-panel: #2E323B;
+            --bg-app: #242830;
+            --text-primary: #e8eaed;
+            --text-secondary: #8b929e;
+            --text-muted: #636a76;
+            --border: #3A3E47;
+            --accent: #A3DAC5;
+            --accent-soft: rgba(163, 218, 197, 0.15);
+            --green: #43b581;
+            --red: #f04747;
+            --hover: #363A43;
+            --shadow: none;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            background: var(--bg-app);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text-primary);
+            overflow: hidden;
+            user-select: none;
+            --wails-draggable: no-drag;
+        }
+        #stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 0;
+        }
+        .card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            animation: card-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .card.is-call { cursor: default; align-items: center; }
+        .card.is-call .avatar { animation: ring-pulse 2s infinite; }
+        @keyframes ring-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(67, 181, 129, 0.5); }
+            70%  { box-shadow: 0 0 0 12px rgba(67, 181, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(67, 181, 129, 0); }
+        }
+        .call-actions { display: flex; gap: 8px; margin-top: 8px; }
+        .call-btn {
+            flex: 1;
+            padding: 7px 0;
+            border: none;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            transition: filter 0.15s, transform 0.1s;
+        }
+        .call-btn:hover { filter: brightness(1.08); }
+        .call-btn:active { transform: scale(0.96); }
+        .call-btn.accept { background: var(--green); }
+        .call-btn.decline { background: var(--red); }
+        .card.is-call .text { color: var(--text-secondary); }
+        .sender { color: var(--accent); font-weight: 500; }
+        .title svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .card:hover { background: var(--hover); }
+        .card.is-leaving { animation: card-out 0.15s ease-in forwards; }
+        @keyframes card-in {
+            from { opacity: 0; transform: translateX(16px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes card-out {
+            to { opacity: 0; transform: translateX(16px); }
+        }
+        .avatar {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+            letter-spacing: 0.2px;
+        }
+        .avatar svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        /* Фото собеседника поверх букв (/vox-avatar/…); не загрузилось — буквы. */
+        .avatar { position: relative; }
+        .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .body { flex: 1; min-width: 0; }
+        .head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+        .title {
+            flex: 1;
+            min-width: 0;
+            font-size: 13px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .app { display: none; }
+        .text {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-word;
+        }
+        .close {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 22px;
+            height: 22px;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s, background 0.15s, color 0.15s;
+        }
+        .card:hover .close { opacity: 1; }
+        .close:hover { background: var(--border); color: var(--text-primary); }
+        /* Строка над стеком (макет Notifications): «ещё N сообщений» · «Скрыть все» */
+        .more {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 0 4px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .more-hide {
+            margin-left: auto;
+            border: none;
+            background: none;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
+            cursor: pointer;
+        }
+        .more-hide:hover { text-decoration: underline; }
+        /* Приглашение в групповой звонок — спокойно, без пульсации */
+        .card.is-invite .avatar { animation: none; }
+        .card.is-invite .title { white-space: normal; font-weight: 400; }
+        .card.is-invite .title b { font-weight: 600; }
+        .call-btn.later {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div id="stack"></div>
+    <script type="module">
+        import { Events, Call } from "/wails/runtime.js";
+
+        var SVC = "vox_app/internal/services.NotifyService.";
+        var MAX_CARDS = 4; // макет Notifications: дальше строка «ещё N»
+        var TTL_MS = 6000;
+        var stack = document.getElementById("stack");
+        var cards = [];      // {el, req, timer, remaining, startedAt}
+        var overflow = 0;    // сколько уведомлений не поместилось в стек
+        var ICONS = {
+            friend: '<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>',
+            voice: '<svg viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>',
+            call: '<svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+            info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+            group: '<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+        };
+        var lang = "en";
+        try { lang = navigator.language.substring(0, 2); } catch (e) {}
+        var TR = {
+            en: { calling: "is calling…", started: "started a call", busy: "You are in another call", accept: "Accept", decline: "Decline", join: "Join", later: "Later", hideAll: "Dismiss all" },
+            ru: { calling: "звонит…", started: "начал звонок", busy: "Вы в другом звонке", accept: "Принять", decline: "Отклонить", join: "Зайти", later: "Позже", hideAll: "Скрыть все" }
+        };
+        var tr = TR[lang] || TR.en;
+
+        // plural — русские формы: 1 сообщение, 2 сообщения, 5 сообщений.
+        function plural(n, one, few, many) {
+            var m10 = n % 10, m100 = n % 100;
+            if (m10 === 1 && m100 !== 11) return one;
+            if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+            return many;
+        }
+        function moreText(n) {
+            if (lang === "ru") return "ещё " + n + " " + plural(n, "сообщение", "сообщения", "сообщений");
+            return n + " more";
+        }
+        function membersText(n) {
+            if (lang === "ru") return n + " " + plural(n, "участник", "участника", "участников");
+            return n + (n === 1 ? " participant" : " participants");
+        }
+
+        // hideAll — «Скрыть все»: все карточки, кроме звонка.
+        function hideAll() {
+            cards.slice().forEach(function (c) { if (!c.call) remove(c); });
+            overflow = 0;
+        }
+
+        function syncSize() {
+            var h = stack.scrollHeight;
+            if (cards.length === 0) {
+                Call.ByName(SVC + "Dismissed").catch(function () {});
+                return;
+            }
+            Call.ByName(SVC + "Resize", Math.ceil(h) + 8).catch(function () {});
+        }
+
+        function remove(card) {
+            var i = cards.indexOf(card);
+            if (i === -1) return;
+            cards.splice(i, 1);
+            clearTimeout(card.timer);
+            card.el.classList.add("is-leaving");
+            setTimeout(function () {
+                card.el.remove();
+                renderMore();
+                syncSize();
+            }, 150);
+        }
+
+        function arm(card) {
+            if (card.call) return;
+            clearTimeout(card.timer);
+            card.startedAt = Date.now();
+            card.timer = setTimeout(function () { remove(card); }, card.remaining);
+        }
+
+        // renderMore — строка над стеком: «ещё N сообщений» (вытесненные) и
+        // «Скрыть все», когда карточек больше одной или что-то вытеснено.
+        function renderMore() {
+            var el = document.getElementById("more");
+            var plain = cards.filter(function (c) { return !c.call; }).length;
+            if (cards.length === 0) overflow = 0;
+            if (plain > 0 && (overflow > 0 || plain >= 2)) {
+                if (!el) {
+                    el = document.createElement("div");
+                    el.id = "more";
+                    el.className = "more";
+                    el.innerHTML = '<span class="more-n"></span><button type="button" class="more-hide"></button>';
+                    el.querySelector(".more-hide").addEventListener("click", function (e) { e.stopPropagation(); hideAll(); });
+                    stack.insertBefore(el, stack.firstChild);
+                }
+                el.querySelector(".more-n").textContent = overflow > 0 ? moreText(overflow) : "";
+                el.querySelector(".more-hide").textContent = tr.hideAll;
+            } else if (el) {
+                el.remove();
+            }
+        }
+
+        function add(req) {
+            if (req.theme) document.documentElement.setAttribute("data-theme", req.theme);
+            if (cards.length >= MAX_CARDS) {
+                // Самую старую (не звонок) вытесняем, «+N» показывает, сколько ушло.
+                var victim = cards.find(function (c) { return !c.call; });
+                if (victim) { overflow++; remove(victim); }
+            }
+            var el = document.createElement("div");
+            el.className = "card";
+
+            var avatar = document.createElement("div");
+            avatar.className = "avatar";
+            var icon = ICONS[req.kind];
+            if (icon && !req.peerId && !req.groupId) {
+                avatar.innerHTML = icon;
+                avatar.style.background = "var(--accent-soft)";
+                avatar.style.color = "var(--accent)";
+            } else if (icon && req.kind !== "message" && req.kind !== "group") {
+                avatar.innerHTML = icon;
+                avatar.style.background = req.color || "var(--accent)";
+            } else {
+                avatar.textContent = (req.avatar || (req.title || "V").substring(0, 2)).toUpperCase();
+                avatar.style.background = req.color || "var(--accent)";
+                if (req.avatarUrl) addPhoto(avatar, req.avatarUrl);
+            }
+
+            var body = document.createElement("div");
+            body.className = "body";
+            var head = document.createElement("div");
+            head.className = "head";
+            var title = document.createElement("div");
+            title.className = "title";
+            if (req.kind === "group" || req.kind === "voice") title.innerHTML = ICONS.group;
+            title.appendChild(document.createTextNode(req.title || "Vox"));
+            var app = document.createElement("div");
+            app.className = "app";
+            app.textContent = "Vox";
+            head.appendChild(title);
+            head.appendChild(app);
+            var text = document.createElement("div");
+            text.className = "text";
+            // Групповое «Отправитель: текст» — отправителя выделяем цветом, как в Telegram.
+            var sep = req.kind === "group" ? (req.body || "").indexOf(": ") : -1;
+            if (sep > 0) {
+                var sender = document.createElement("span");
+                sender.className = "sender";
+                sender.textContent = req.body.substring(0, sep) + ": ";
+                text.appendChild(sender);
+                text.appendChild(document.createTextNode(req.body.substring(sep + 2)));
+            } else {
+                text.textContent = req.body || "";
+            }
+            body.appendChild(head);
+            body.appendChild(text);
+
+            var close = document.createElement("button");
+            close.className = "close";
+            close.type = "button";
+            close.textContent = "×";
+
+            el.appendChild(avatar);
+            el.appendChild(body);
+            el.appendChild(close);
+
+            var card = { el: el, req: req, timer: null, remaining: TTL_MS, startedAt: 0 };
+            cards.push(card);
+            stack.appendChild(el); // новые снизу, строка «ещё N» — сверху
+
+            close.addEventListener("click", function (e) { e.stopPropagation(); remove(card); });
+            el.addEventListener("click", function () {
+                Call.ByName(SVC + "OpenTarget", req.peerId || "", req.groupId || "").catch(function () {});
+                // Открыли чат — остальные карточки того же чата тоже не нужны.
+                cards.slice().forEach(function (c) {
+                    if (c === card || (req.peerId && c.req.peerId === req.peerId) || (req.groupId && c.req.groupId === req.groupId)) remove(c);
+                });
+            });
+            // Наведение ставит таймер на паузу, уход — продолжает с остатка.
+            el.addEventListener("mouseenter", function () {
+                if (card.call) return;
+                clearTimeout(card.timer);
+                card.remaining = Math.max(1500, card.remaining - (Date.now() - card.startedAt));
+            });
+            el.addEventListener("mouseleave", function () { arm(card); });
+
+            arm(card);
+            renderMore();
+            syncSize();
+        }
+
+        // addPhoto — фото поверх букв; при ошибке загрузки буквы остаются.
+        function addPhoto(avatar, url) {
+            var img = document.createElement("img");
+            img.alt = "";
+            img.onerror = function () { img.remove(); };
+            img.src = url;
+            avatar.appendChild(img);
+        }
+
+        // Карточка входящего звонка: без таймера, с Accept/Decline; снимается
+        // событием vox:toast-call-end от CallsService (accept/reject/end/timeout).
+        function addCall(d) {
+            if (d.theme) document.documentElement.setAttribute("data-theme", d.theme);
+            cards.slice().forEach(function (c) { if (c.call) remove(c); });
+            // Приглашение в групповой звонок — спокойная карточка «Зайти / Позже»
+            // (макет Notifications); личный звонок сюда приходит только как fallback.
+            var invite = d.type === "group" && !d.busy;
+            var el = document.createElement("div");
+            el.className = "card is-call" + (invite ? " is-invite" : "");
+            var nick = d.nickname || "Unknown";
+            var avatar = document.createElement("div");
+            avatar.className = "avatar";
+            avatar.textContent = nick.substring(0, 2).toUpperCase();
+            avatar.style.background = colorFromId(d.peerId || "");
+            if (d.peerId) addPhoto(avatar, "/vox-avatar/" + encodeURIComponent(d.peerId));
+            var body = document.createElement("div");
+            body.className = "body";
+            var head = document.createElement("div");
+            head.className = "head";
+            var title = document.createElement("div");
+            title.className = "title";
+            if (invite) {
+                var b = document.createElement("b");
+                b.textContent = nick;
+                title.appendChild(b);
+                title.appendChild(document.createTextNode(" " + tr.started));
+            } else {
+                title.textContent = nick;
+            }
+            head.appendChild(title);
+            var text = document.createElement("div");
+            text.className = "text";
+            if (invite) {
+                var parts = [];
+                if (d.groupName) parts.push("«" + d.groupName + "»");
+                if (d.participants > 0) parts.push(membersText(d.participants));
+                text.textContent = parts.join(" · ");
+            } else {
+                text.textContent = d.busy ? tr.busy : tr.calling;
+            }
+            var actions = document.createElement("div");
+            actions.className = "call-actions";
+            var decline = document.createElement("button");
+            decline.className = "call-btn " + (invite ? "later" : "decline");
+            decline.type = "button";
+            decline.textContent = invite ? tr.later : tr.decline;
+            var accept = document.createElement("button");
+            accept.className = "call-btn accept";
+            accept.type = "button";
+            accept.textContent = invite ? tr.join : tr.accept;
+            actions.appendChild(decline);
+            actions.appendChild(accept);
+            body.appendChild(head);
+            body.appendChild(text);
+            body.appendChild(actions);
+            el.appendChild(avatar);
+            el.appendChild(body);
+
+            var card = { el: el, req: { kind: "call", peerId: d.peerId }, call: d.callId, timer: null, remaining: 0, startedAt: 0 };
+            cards.unshift(card); // звонок всегда сверху
+            stack.insertBefore(el, stack.firstChild);
+            accept.addEventListener("click", function (e) {
+                e.stopPropagation();
+                Call.ByName("vox_app/internal/services.CallsService.AcceptCall", d.callId).catch(function () {});
+                // Звонок идёт в главном окне — поднять его.
+                Call.ByName(SVC + "OpenTarget", d.peerId || "", "").catch(function () {});
+                remove(card);
+            });
+            decline.addEventListener("click", function (e) {
+                e.stopPropagation();
+                if (invite) {
+                    // «Позже»: не отклоняем — карточка уходит, рингтон смолкает.
+                    Call.ByName(SVC + "LaterCall", d.callId).catch(function () {});
+                } else {
+                    Call.ByName("vox_app/internal/services.CallsService.RejectCall", d.callId).catch(function () {});
+                }
+                remove(card);
+            });
+            renderMore();
+            syncSize();
+        }
+
+        function colorFromId(hexStr) {
+            var h = 0;
+            for (var i = 0; i < hexStr.length && i < 8; i++) h = hexStr.charCodeAt(i) + ((h << 5) - h);
+            return "hsl(" + ((h % 360 + 360) % 360) + ", 55%, 55%)";
+        }
+
+        Events.On("vox:toast-show", function (event) {
+            if (event && event.data) add(event.data);
+        });
+        Events.On("vox:toast-call", function (event) {
+            if (event && event.data) addCall(event.data);
+        });
+        Events.On("vox:toast-call-end", function (event) {
+            var id = event && event.data && event.data.callId;
+            cards.slice().forEach(function (c) { if (c.call && (!id || c.call === id)) remove(c); });
+        });
+        Events.On("vox:call-ended", function () { cards.slice().forEach(function (c) { if (c.call) remove(c); }); });
+        Events.On("vox:call-accepted", function () { cards.slice().forEach(function (c) { if (c.call) remove(c); }); });
+        // Чат открыт из главного окна — карточки этого чата больше не актуальны.
+        Events.On("vox:chat-opened", function (event) {
+            var d = event && event.data || {};
+            cards.slice().forEach(function (c) {
+                if ((d.peerId && c.req.peerId === d.peerId) || (d.groupId && c.req.groupId === d.groupId)) remove(c);
+            });
+        });
+    </script>
+</body>
+</html>

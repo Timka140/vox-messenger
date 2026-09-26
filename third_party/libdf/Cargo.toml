@@ -1,0 +1,26 @@
+[package]
+name = "nx_df"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "nx_df"
+# Только staticlib. cdylib не нужен и создаёт libnx_df.dll.a на Windows —
+# mingw-линкер предпочитает его перед .a → exe требует nx_df.dll в runtime
+# (STATUS_DLL_NOT_FOUND при запуске).
+crate-type = ["staticlib"]
+
+[dependencies]
+# Upstream DeepFilterNet 0.5.6 with its built-in C API (feature "capi").
+# crates.io only publishes up to 0.2.5, so we pin by git tag.
+# default-features = false drops default-model/vorbis/flac which we don't need.
+df = { package = "deep_filter", git = "https://github.com/Rikorose/DeepFilterNet.git", tag = "v0.5.6", default-features = false, features = ["tract"] }
+ndarray = "0.15"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

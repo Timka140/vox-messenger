@@ -1,0 +1,56 @@
+/* ========== DARK THEME ========== */
+[data-theme="dark"] {
+    --bg-app: #242830;
+    --bg-panel: #2E323B;
+    --bg-chat: #242830;
+    --bg-nav: #1B1E25;
+    --bg-nav-hover: #2E323B;
+    --input-bg: #262A33;
+
+    --bubble-out: #A3DAC5;
+    --bubble-out-text: #1a2a22;
+    --bubble-in: #334051;
+    --bubble-in-text: #e1e3e6;
+
+    --text-primary: #e8eaed;
+    --text-secondary: #8b929e;
+    --text-muted: #636a76;
+
+    --accent: #A3DAC5;
+    --accent-hover: #8dcbb3;
+    --accent-btn-text: #1a2a22;
+    --accent-soft: rgba(163, 218, 197, 0.15);
+
+    --border: #3A3E47;
+
+    --green: #43b581;
+    --red: #f04747;
+    --yellow: #faa61a;
+
+    --contact-hover: #363A43;
+    --contact-active: rgba(163, 218, 197, 0.15);
+    --contact-active-text: #ffffff;
+    --contact-active-muted: rgba(255, 255, 255, 0.55);
+
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);  /* modals in dark */
+}
+
+/* Dark-specific component overrides */
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #3A3E47; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #4A4E57; }
+[data-theme="dark"] .recording-bar {
+    background: #3a1a1a;
+    border-color: #7f1d1d;
+}
+
+/* Outbound bubble time/status — dark text on light mint bubble */
+[data-theme="dark"] .message-row.outbound .bubble-time {
+    color: #2a4a3a;
+    opacity: 0.7;
+}
+[data-theme="dark"] .message-row.outbound .bubble-status {
+    color: #2a4a3a;
+    opacity: 0.6;
+}

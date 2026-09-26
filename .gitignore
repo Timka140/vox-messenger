@@ -1,0 +1,66 @@
+# Локальные данные разработчика: логи, модели, собранные релизы,
+# приватный ключ подписи релизов (release-sign.key). Бэкапить вручную.
+/.local/
+
+# Макеты (редизайн Vox, сайт и админка northwind) — вне репозитория.
+# Сайт northwindcdn.com и общая админка — отдельный проект, их будущий код
+# сюда тоже не попадает.
+/design/
+/northwind*/
+/site/
+/admin/
+
+# Секреты узлов кластера: приватник сигналки (mutual auth с клиентами),
+# build/remote/<node>/.env, sfu.env. Локальный source of truth, deploy-*.sh
+# заливает на VPS.
+build/remote/vox-signal.key
+build/remote/*.env
+build/remote/*/
+
+# Env-файлы (могут содержать секреты — лучше держать .env.example)
+.env
+.env.*
+!.env.example
+
+# Артефакты сборки
+build/out/
+build/DeepFilterNet3.tar.gz
+server/*/bin/
+*.exe
+__debug_bin*
+
+# Рабочие папки клиента (exe, БД, ключи, логи, модели рядом с exe)
+app/bin/
+app/bin2/
+
+# ONNX runtime нативные библиотеки — качаются download_runtime.sh
+app/internal/ml/onnx/lib/windows-amd64/
+app/internal/ml/onnx/lib/linux-amd64/
+app/internal/ml/onnx/lib/darwin-arm64/
+
+# DTLN модели — см. download_models.sh
+app/internal/audio/dtln/*.onnx
+
+# Логи рантайма и ротированные копии
+*.log
+*.log.[0-9]
+*.log.[0-9].unsent
+
+# Python: виртуальные окружения и кэш байткода (зависимости — requirements.txt)
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Go test coverage
+coverage.out
+*.coverprofile
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

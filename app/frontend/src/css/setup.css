@@ -1,0 +1,229 @@
+/* ========== SETUP SCREEN ========== */
+#setup-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--bg-app);
+}
+
+.setup-container {
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+    padding: 48px 40px;
+    background: var(--bg-panel);
+    border-radius: 4px;
+    box-shadow: var(--shadow-md);
+}
+
+.setup-container h1 {
+    font-size: 32px;
+    margin-bottom: 8px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.setup-container p {
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.setup-container input {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    margin-bottom: 16px;
+    transition: border-color 0.15s;
+}
+
+.setup-container input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(93, 181, 166, 0.15);
+}
+
+.setup-container button:not(.password-toggle) {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: var(--accent-btn-text);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.15s;
+}
+
+.setup-container button:not(.password-toggle):hover {
+    background: var(--accent-hover);
+}
+
+.setup-section {
+    text-align: left;
+    margin-bottom: 4px;
+}
+
+.setup-section h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+.setup-section p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.setup-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.setup-divider::before,
+.setup-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.setup-btn-secondary {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+}
+
+.setup-btn-secondary:hover {
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+
+.mono-input {
+    font-family: 'Consolas', monospace;
+    font-size: 12px !important;
+}
+
+.password-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.password-wrap input {
+    padding-right: 42px;
+    margin-bottom: 0;
+}
+
+/* Hide native browser password reveal button (Edge/Chrome/WebView2) */
+.password-wrap input::-ms-reveal,
+.password-wrap input::-ms-clear,
+.password-wrap input::-webkit-credentials-auto-fill-button {
+    display: none;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.password-toggle:hover {
+    color: var(--text-primary);
+}
+
+
+/* --- Setup link (Have a backup?) --- */
+.setup-link {
+    display: inline-block;
+    margin-top: 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.setup-link:hover {
+    color: var(--accent);
+}
+
+.setup-btn-primary {
+    margin-top: 24px;
+}
+
+.setup-hint {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+/* --- Recovery screen --- */
+#recovery-screen {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--bg-app);
+}
+
+.recovery-warning {
+    text-align: center;
+    margin-bottom: 24px;
+    color: var(--text-secondary);
+}
+
+.recovery-warning i {
+    color: var(--yellow);
+    margin-bottom: 8px;
+}
+
+.recovery-warning h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.recovery-warning p {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.error-text {
+    color: var(--red) !important;
+    margin-top: 12px;
+    font-size: 13px;
+}

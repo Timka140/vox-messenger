@@ -1,0 +1,821 @@
+/* ========== ATTACHMENT BUBBLES ==========
+ * Баббл с фото/файлами внутри обычного .message-bubble.
+ * Три расклада:
+ *   .attach-photos — сетка фото (1, 2, 3-4, 5+)
+ *   .attach-files  — вертикальный список карточек для файлов
+ *   .attach-caption — текст caption под вложениями
+ *
+ * Состояния:
+ *   .is-uploading — полупрозрачный overlay с progress bar
+ *   .is-failed    — красный overlay с Retry
+ */
+
+.attachment-bubble {
+    position: relative;
+    min-width: 160px;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Photo placeholder + Download — для inbound фото с !available.
+   Серая ячейка с центральной кнопкой «скачать» и размером файла. */
+.attach-photo.needs-download {
+    background: var(--input-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.attach-photo-download {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 18px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    width: 64px;
+    height: 64px;
+    justify-content: center;
+    transition: background var(--dur-fast);
+}
+
+.attach-photo-download:hover {
+    background: var(--accent);
+}
+
+.attach-photo-download-size {
+    position: absolute;
+    bottom: 12px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    pointer-events: none;
+}
+
+/* Download-action в .attach-file-action — для inbound нескачанного файла.
+   Backend ставит att.available=false → фронт рендерит этот вариант с
+   download-иконкой вместо external-link. */
+.attach-file-action[title="Скачать все"],
+.attach-file-action[data-action="download"] {
+    color: var(--accent);
+}
+
+/* Per-file прогресс скачки. Прилипает к карточке/cell файла, не висит
+   общим блоком на всю bubble. */
+
+/* ─── Photo: оверлей-ring с % и cancel в центре ─── */
+.attach-photo-progress {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+}
+
+.attach-photo-progress-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: var(--accent);
+    width: 0%;
+    transition: width 200ms ease-out;
+}
+
+.attach-photo-progress-text {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.attach-photo-cancel {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--dur-fast);
+}
+
+.attach-photo-cancel:hover {
+    background: var(--red, #e53935);
+}
+
+/* ─── File card: тонкая линия по низу + cancel вместо external-link ─── */
+.attach-file.is-downloading {
+    position: relative;
+}
+
+.attach-file-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.attach-file-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 200ms ease-out;
+}
+
+/* Остановленная на середине загрузка: полоска остаётся, но приглушённая. */
+.attach-file.is-paused {
+    position: relative;
+}
+
+.attach-file-progress.is-paused .attach-file-progress-fill {
+    background: var(--text-muted);
+    opacity: 0.7;
+}
+
+.attach-file-action.is-cancel {
+    color: var(--red, #e53935);
+}
+
+.attach-file-action.is-cancel:hover {
+    background: rgba(229, 57, 53, 0.15);
+}
+
+/* --- Photo grid ---
+ * Все варианты — фиксированный aspect-ratio на КОНТЕЙНЕРЕ, ячейки
+ * заполняют свои grid-cells. Раньше aspect-ratio: 1 на каждой ячейке +
+ * grid-template-rows: 1fr 1fr приводило к тому что ячейки растягивались
+ * по quadrant'у, а место ниже последней строки оставалось пустым.
+ */
+
+.attach-photos {
+    display: grid;
+    gap: 3px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-chat);
+}
+
+/* 1 фото — ширина 320, высота из storage-ratio (но max-height капнут). */
+.attach-photos.count-1 {
+    width: 320px;
+    max-width: 100%;
+    grid-template-columns: 1fr;
+}
+.attach-photos.count-1 .attach-photo {
+    aspect-ratio: var(--photo-ratio, 4 / 3);
+    max-height: 380px;
+    min-height: 140px;
+    width: 100%;
+    height: auto;
+}
+
+/* 2 фото — две колонки 50/50, общий aspect-ratio 2:1 (квадраты). */
+.attach-photos.count-2 {
+    grid-template-columns: 1fr 1fr;
+    aspect-ratio: 2 / 1;
+}
+
+/* 3 фото — большое сверху (вся ширина) + 2 равных снизу. 4:3 общий. */
+.attach-photos.count-3 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 2fr 1fr;
+    aspect-ratio: 4 / 3;
+}
+.attach-photos.count-3 .attach-photo:first-child {
+    grid-column: span 2;
+}
+
+/* 4 фото — 2×2 квадратная сетка. */
+.attach-photos.count-4 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 1 / 1;
+}
+
+/* 5 фото — 2 широких сверху + 3 равных снизу (как в телеграме). */
+.attach-photos.count-5 {
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: 3fr 2fr;
+    aspect-ratio: 6 / 5;
+}
+.attach-photos.count-5 .attach-photo:nth-child(-n+2) {
+    grid-column: span 3;
+}
+.attach-photos.count-5 .attach-photo:nth-child(n+3) {
+    grid-column: span 2;
+}
+
+/* 6 фото — 3×2 равных. */
+.attach-photos.count-6 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 3 / 2;
+}
+
+/* 7+ фото — 3×3 сетка (до 9 показываем); 10+ — последняя с "+N" overlay.
+   Aspect 1:1 — даёт квадраты для каждой ячейки, как в телеграме. */
+.attach-photos.count-many {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    aspect-ratio: 1 / 1;
+}
+
+/* ─── Portrait variants ───
+ * Когда все фото portrait, переворачиваем layout: большое фото слева,
+ * остальные стэкаются справа. Bubble занимает узкий и высокий прямоугольник,
+ * как в Telegram. Дефолт (.is-landscape) — сверху-вниз — оставляем как есть. */
+
+/* 2 портрета — две высокие колонки, общий aspect 1:1 (две portrait вписываются
+   в почти квадратный блок). Высота больше чем у landscape-2 (2:1 → 1:1). */
+.attach-photos.count-2.is-portrait {
+    aspect-ratio: 1 / 1;
+}
+
+/* 3 портрета — большой слева на 2 строки, 2 маленьких стэкаются справа. */
+.attach-photos.count-3.is-portrait {
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 3 / 4;
+}
+.attach-photos.count-3.is-portrait .attach-photo:first-child {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+}
+.attach-photos.count-3.is-portrait .attach-photo:nth-child(2),
+.attach-photos.count-3.is-portrait .attach-photo:nth-child(3) {
+    grid-column: 2;
+}
+
+/* 4 портрета — большой слева на 3 строки, 3 справа стэкаются.
+   Альтернативно можно 2×2 — но для портретов вытянутый layout органичнее. */
+.attach-photos.count-4.is-portrait {
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    aspect-ratio: 4 / 5;
+}
+.attach-photos.count-4.is-portrait .attach-photo:first-child {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+}
+.attach-photos.count-4.is-portrait .attach-photo:nth-child(n+2) {
+    grid-column: 2;
+}
+
+/* 5 портретов — большой слева, 4 справа в 2×2. */
+.attach-photos.count-5.is-portrait {
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 4 / 5;
+}
+.attach-photos.count-5.is-portrait .attach-photo:first-child {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+}
+.attach-photos.count-5.is-portrait .attach-photo:nth-child(2) { grid-column: 2; grid-row: 1; }
+.attach-photos.count-5.is-portrait .attach-photo:nth-child(3) { grid-column: 3; grid-row: 1; }
+.attach-photos.count-5.is-portrait .attach-photo:nth-child(4) { grid-column: 2; grid-row: 2; }
+.attach-photos.count-5.is-portrait .attach-photo:nth-child(5) { grid-column: 3; grid-row: 2; }
+
+/* 6 портретов — 2×3, вытянутый прямоугольник. */
+.attach-photos.count-6.is-portrait {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, 1fr);
+    aspect-ratio: 2 / 3;
+}
+
+/* 7+ портретов — 3×3 квадратная сетка (как в landscape варианте — много
+   мелких миниатюр одинакового размера, а ориентация уже не критична). */
+.attach-photos.count-many.is-portrait {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    aspect-ratio: 1 / 1;
+}
+
+.attach-photo {
+    position: relative;
+    overflow: hidden;
+    background: var(--input-bg);
+    cursor: zoom-in;
+    /* min-height фиксирован только для одиночного фото-варианта, см. count-1 выше */
+}
+
+/* Фото не загрузилось (blob утерян): заглушка вместо broken-image браузера */
+.attach-photo.attach-photo-lost {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+    cursor: default;
+}
+.attach-photo-lost-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px;
+    max-width: 100%;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+}
+.attach-photo-lost-inner span {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attach-photos.count-1 .attach-photo img,
+.attach-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.attach-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.attach-photo.has-more::after {
+    content: "+" attr(data-more);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    font-family: var(--font-ui);
+}
+
+/* --- File cards --- */
+
+.attach-files {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* is-stacked = multiple files в одном bubble — компактнее чтобы не съесть
+   весь вид чата. Одиночный файл остаётся просторным. */
+.attach-files.is-stacked {
+    gap: 1px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.message-row.outbound .attach-files.is-stacked {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.attach-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    min-width: 220px;
+    max-width: 380px;
+}
+
+.attach-files.is-stacked .attach-file {
+    padding: 6px 8px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+.attach-files.is-stacked .attach-file:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+}
+
+.message-row.outbound .attach-files.is-stacked .attach-file:not(:last-child) {
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.attach-files.is-stacked .attach-file-icon {
+    width: 28px;
+    height: 28px;
+}
+
+.attach-files.is-stacked .attach-file-icon .icon-20 {
+    width: 16px !important;
+    height: 16px !important;
+}
+
+.message-row.outbound .attach-file {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.attach-file-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.attach-file-icon-thumb {
+    background: var(--input-bg);
+}
+
+.attach-file-icon-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.message-row.outbound .attach-file-icon {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--bubble-out-text);
+}
+
+.message-row.outbound .attach-file-icon-thumb {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.attach-file-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.attach-file-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.message-row.outbound .attach-file-name {
+    color: var(--bubble-out-text);
+}
+
+.attach-file-size {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.message-row.outbound .attach-file-size {
+    color: var(--bubble-out-text);
+    opacity: 0.7;
+}
+
+.attach-file-action {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background var(--dur-fast), color var(--dur-fast);
+    opacity: 0.7;
+}
+
+.attach-file:hover .attach-file-action {
+    opacity: 1;
+}
+
+.attach-file-action:hover {
+    background: var(--input-bg);
+    color: var(--accent);
+}
+
+.message-row.outbound .attach-file-action {
+    color: var(--bubble-out-text);
+    background: transparent;
+}
+
+.message-row.outbound .attach-file-action:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: var(--bubble-out-text);
+}
+
+/* --- Caption --- */
+
+.attach-caption {
+    padding: 2px 4px;
+    font-size: 14px;
+    line-height: 1.35;
+    color: inherit;
+    word-wrap: break-word;
+}
+
+/* --- Upload overlay --- */
+
+.attachment-bubble.is-uploading .attach-photo,
+.attachment-bubble.is-uploading .attach-file {
+    opacity: 0.85;
+}
+
+.attach-upload-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0));
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    pointer-events: auto;
+}
+
+.attach-upload-overlay .attach-upload-text {
+    flex: 1;
+    min-width: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.attach-upload-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+}
+
+.attach-upload-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.2s ease-out;
+}
+
+.attach-upload-cancel {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background var(--dur-fast);
+}
+
+.attach-upload-cancel:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+/* --- Failure state --- */
+
+.attachment-bubble.is-failed {
+    opacity: 0.7;
+}
+
+.attach-upload-overlay.is-failed {
+    background: linear-gradient(to top, rgba(239, 68, 68, 0.85), rgba(239, 68, 68, 0));
+}
+
+.attach-retry-btn {
+    padding: 3px 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur-fast);
+}
+
+.attach-retry-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+/* ========== ВКЛАДКА «МЕДИА» (info-media.js, макеты InfoMedia / InfoMediaSearch) ==========
+ * Текстовые вкладки со счётчиками в стиле шапки панели, поиск за иконкой,
+ * группы по месяцам (.ip-sec из panels.css), сетка фото 3 колонки. */
+#info-tab-media.active { display: flex; flex-direction: column; gap: 10px; }
+.im-bar { display: flex; align-items: center; gap: 2px; min-height: 32px; }
+.im-tab {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 5px 12px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--dur-fast), color var(--dur-fast);
+}
+.im-tab:hover { background: var(--input-bg); }
+.im-tab.active { background: var(--accent); color: var(--accent-btn-text); }
+.im-tab-count { font-size: 12px; opacity: 0.65; }
+.im-spacer { flex: 1; }
+.im-bar .ip-icon-btn { width: 28px; height: 28px; }
+.im-search {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text-muted);
+    box-sizing: border-box;
+}
+.im-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+}
+.im-body { display: flex; flex-direction: column; gap: 6px; }
+.im-sec { padding-top: 6px; }
+.im-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+.im-cell { aspect-ratio: 1; overflow: hidden; border-radius: 3px; background: var(--input-bg); cursor: zoom-in; position: relative; }
+.im-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.im-cell-date { position: absolute; left: 4px; bottom: 4px; padding: 1px 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 10px; }
+.im-row { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 6px; cursor: pointer; }
+.im-row:hover { background: var(--contact-hover); }
+.im-ext {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #5b6472;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.im-ext[data-kind="pdf"] { background: #c2410c; }
+.im-ext[data-kind="zip"] { background: #1d4ed8; }
+.im-ext[data-kind="doc"] { background: #2563eb; }
+.im-ext[data-kind="sheet"] { background: #15803d; }
+.im-ext[data-kind="audio"] { background: #7c3aed; }
+.im-ext[data-kind="video"] { background: #be185d; }
+.im-link-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+.im-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.im-name { font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-info { font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-hl { color: var(--accent); font-weight: 600; }
+.im-hint { font-size: 12px; color: var(--text-muted); }
+.im-hint.center { text-align: center; padding-top: 8px; }
+.im-empty { padding: 24px 8px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* Кнопка очистки медиа этого чата — внизу под списком. */
+.media-clear-row {
+    display: flex;
+    justify-content: center;
+    padding: 12px 8px 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 12px;
+}
+
+.media-clear-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.media-clear-btn:hover {
+    background: rgba(229, 57, 53, 0.1);
+    color: var(--red, #e53935);
+    border-color: var(--red, #e53935);
+}
+
+
+/* ─── Фаза 3a (макеты MessagesPhotos / MessagesFiles) ───
+ * Альбом — 280px, gap 3px, радиус 6. Карточка файла — иконка-расширение
+ * 36px с цветом по типу, «2,4 МБ · PDF», одно действие справа. */
+.message-bubble.has-attachment { padding: 4px 4px 5px; }
+.attach-photos { width: 280px; max-width: 100%; border-radius: 6px; }
+.attach-photos.count-1 { width: 280px; }
+.attachment-bubble .attach-caption { padding: 2px 6px; }
+.attachment-bubble .bubble-meta { padding: 0 6px; }
+.attach-files .attach-file { min-width: 260px; }
+.attach-file-icon.has-ext {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: #5b6472;
+}
+.attach-file-icon.has-ext[data-kind="pdf"] { background: #c2410c; }
+.attach-file-icon.has-ext[data-kind="zip"] { background: #1d4ed8; }
+.attach-file-icon.has-ext[data-kind="doc"] { background: #2563eb; }
+.attach-file-icon.has-ext[data-kind="sheet"] { background: #15803d; }
+.attach-file-icon.has-ext[data-kind="audio"] { background: #7c3aed; }
+.attach-file-icon.has-ext[data-kind="video"] { background: #be185d; }
+.message-row.outbound .attach-file-icon.has-ext { color: #fff; }
+.message-row.inbound .attach-file { background: var(--input-bg); }
+
+/* «Выбрать» во вкладке «Медиа» (фаза 7e): шапка выбора, отметки ячеек и строк */
+.im-sec .ip-sec-link { margin-left: auto; }
+.im-select-bar { gap: 4px; }
+.im-select-bar .select-count { margin-left: 2px; }
+.im-select-bar .im-select-action { width: 32px; padding: 0; justify-content: center; }
+.im-check { display: none; }
+.im-selecting .im-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: rgba(0, 0, 0, 0.35);
+    color: transparent;
+}
+.im-selecting .im-cell { cursor: pointer; }
+.im-selecting .im-cell .im-check { position: absolute; top: 4px; right: 4px; }
+.im-selecting .im-cell.is-selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+.im-selecting .im-row .ip-icon-btn { display: none; }
+.im-selecting .im-row .im-check { border-color: var(--border); background: transparent; }
+.im-selecting .im-row.is-selected { background: var(--contact-hover); }
+.im-selecting .is-selected .im-check { background: var(--accent); border-color: var(--accent); color: var(--accent-btn-text); }

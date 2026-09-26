@@ -1,0 +1,12 @@
+{"time":"2026-04-08T18:09:59.5065203+03:00","level":"INFO","msg":"запуск сигнального сервера","env":"local"}
+{"time":"2026-04-08T18:09:59.5070551+03:00","level":"INFO","msg":"сервер запускается","addr":"0.0.0.0:8080","ws_path":"/ws"}
+{"time":"2026-04-08T18:10:09.4022364+03:00","level":"INFO","msg":"пир зарегистрирован","nick_tag":"Timka140#0218b2c80260179c","public_key":"0218b2c80260179c034bd05c104f29b76d5b9300724d5d520b6c1cc4e125634c","total_peers":1}
+{"time":"2026-04-08T18:10:09.5860757+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"offer","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.5866055+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.5866055+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.5866055+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.593578+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.5941025+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.5941025+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.8609859+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
+{"time":"2026-04-08T18:10:09.8647391+03:00","level":"DEBUG","msg":"📨 ROUTE: пир не в сети","type":"ice","from":"Timka140#0218b2c80260179c","to":"39d39bdac36d0b8a"}
