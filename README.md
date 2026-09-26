@@ -66,4 +66,4 @@ cd server/signal && go test ./...
 
 ## Лицензия
 
-[MIT](LICENSE). Сторонние компоненты в `third_party/` и `app/internal/audio/rnnoise` распространяются под своими лицензиями (файлы LICENSE в их каталогах).
+[MIT](LICENSE). Сторонний код распространяется под своими лицензиями: форки pion (`third_party/pion-*`, MIT), libopus (`third_party/opus`, BSD, текст в заголовках), RNNoise (`app/internal/audio/rnnoise`, BSD), OpenH264 (`app/internal/codec/h264enc`, BSD), miniaudio (public domain / MIT-0), модели FastEnhancer и GTCRN (MIT, см. README в их каталогах).
