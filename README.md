@@ -63,3 +63,7 @@ cd app && CGO_ENABLED=1 go build .
 cd app && go test ./...
 cd server/signal && go test ./...
 ```
+
+## Лицензия
+
+[MIT](LICENSE). Сторонние компоненты в `third_party/` и `app/internal/audio/rnnoise` распространяются под своими лицензиями (файлы LICENSE в их каталогах).
