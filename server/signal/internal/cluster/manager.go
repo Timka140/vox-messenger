@@ -779,6 +779,9 @@ type Health struct {
 	Links     []LinkHealth `json:"links"`
 }
 
+// SelfAddr — свой адрес из CLUSTER_SELF_ADDR (может быть пустым).
+func (m *Manager) SelfAddr() string { return m.cfg.SelfAddr }
+
 // Health — снимок для /healthz.
 func (m *Manager) Health() Health {
 	h := Health{NodeID: m.selfID, SoftLimit: m.cfg.SoftLimit, DirSize: m.dir.Size()}

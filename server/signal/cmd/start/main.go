@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"log/slog"
+	"messenger_signal/internal/admin"
 	"messenger_signal/internal/cluster"
 	"messenger_signal/internal/config"
 	"messenger_signal/internal/groupstore"
@@ -16,6 +19,7 @@ import (
 	"messenger_signal/internal/server"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -156,14 +160,18 @@ func main() {
 		store := logstore.New(cfg.Debug.Dir, logger)
 		srv.SetLogStore(store, "vox-signal.log")
 		go func() {
-			if err := srv.StartDebug(cfg.Debug.Port); err != nil {
+			if err := srv.StartDebug(cfg.Debug.Host, cfg.Debug.Port); err != nil {
 				logger.Error("debug HTTP остановлен", slog.String("error", err.Error()))
 			}
 		}()
 		logger.Info("debug log collection включён",
+			slog.String("host", cfg.Debug.Host),
 			slog.Int("port", cfg.Debug.Port),
 			slog.String("dir", cfg.Debug.Dir))
 	}
+
+	// Admin API /admin/v1/* — после всех хранилищ: Handler собирается при Start.
+	setupAdmin(srv, cfg.Admin, logger)
 
 	// Запускаем сервер в горутине
 	go func() {
@@ -199,6 +207,29 @@ func main() {
 	}
 
 	logger.Info("сервер остановлен")
+}
+
+// setupAdmin включает admin API, если ADMIN_TOKEN не короче 32 символов.
+func setupAdmin(srv *server.Server, cfg config.AdminConfig, logger *slog.Logger) {
+	if cfg.Token == "" {
+		logger.Info("admin API выключен (ADMIN_TOKEN пуст)")
+		return
+	}
+	if len(cfg.Token) < admin.MinTokenLen {
+		logger.Error("admin API выключен: ADMIN_TOKEN короче 32 символов")
+		return
+	}
+	var pub ed25519.PublicKey
+	if cfg.ReleasePubKey != "" {
+		b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(cfg.ReleasePubKey))
+		if err != nil || len(b) != ed25519.PublicKeySize {
+			logger.Error("RELEASE_PUBKEY невалиден — замена манифеста через admin API недоступна")
+		} else {
+			pub = ed25519.PublicKey(b)
+		}
+	}
+	srv.SetAdmin(cfg.Token, pub)
+	logger.Info("admin API включён", slog.Bool("release_pubkey", pub != nil))
 }
 
 func setupLogger(env string) (*slog.Logger, *os.File) {
