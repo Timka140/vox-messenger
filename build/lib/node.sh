@@ -3,7 +3,7 @@
 #
 # Узел описывается файлом build/nodes/<name>.conf (в git, без секретов).
 # Секреты узла лежат в build/remote/<name>/ (.env, sfu.env, vox-signal.key,
-# ssh.conf с NODE_SSH / NODE_SSH_PORT / NODE_ROOT_SSH), каталог в .gitignore.
+# ssh.conf с NODE_SSH / NODE_SSH_PORT / NODE_ROOT_SSH / NODE_IP), каталог в .gitignore.
 # Пример ssh.conf — build/nodes/ssh.conf.example.
 #
 # Использование:
@@ -35,6 +35,7 @@ load_node() {
     NODE_SSH_PORT=22
     NODE_DIR=""
     NODE_IP=""
+    NODE_HOST=""
     NODE_WS_PORT=9741
     NODE_SOFT_LIMIT=400
     NODE_PUBKEY=""
@@ -54,8 +55,12 @@ load_node() {
         echo "error: нет NODE_SSH для узла $name (ожидается в $ssh_conf)" >&2
         return 1
     fi
-    if [ -z "$NODE_DIR" ] || [ -z "$NODE_IP" ]; then
-        echo "error: в $conf должны быть NODE_DIR, NODE_IP" >&2
+    if [ -z "$NODE_DIR" ] || [ -z "$NODE_HOST" ]; then
+        echo "error: в $conf должны быть NODE_DIR, NODE_HOST" >&2
+        return 1
+    fi
+    if [ -z "$NODE_IP" ]; then
+        echo "error: нет NODE_IP для узла $name (ожидается в $ssh_conf)" >&2
         return 1
     fi
 
