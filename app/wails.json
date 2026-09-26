@@ -1,0 +1,9 @@
+{
+  "$schema": "https://wails.io/schemas/config.v3.json",
+  "name": "Vox",
+  "outputfilename": "vox",
+  "frontend:dir": "frontend",
+  "author": {
+    "name": "Vox Team"
+  }
+}

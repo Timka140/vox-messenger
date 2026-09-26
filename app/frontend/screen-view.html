@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Vox — screen</title>
+    <link rel="icon" type="image/png" href="src/icon/icon_256x256.png">
+    <style>
+        /* Окно демонстрации экрана (макет design/vox-redesign/PopoutWindow):
+           отдельное frameless-окно Wails поверх всех, свой заголовок 32px —
+           регион перетаскивания с кнопками звонка, чтобы ничего не лежало
+           поверх картинки. Токены — копия variables.css / themes/dark.css
+           (страница живёт в своём окне, общие css не подключены). */
+        :root {
+            --bg-panel: #ffffff;
+            --bg-app: #f0f2f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --border: #e5e7eb;
+            --accent: #5DB5A6;
+            --green: #22c55e;
+            --red: #ef4444;
+            --hover: #f3f4f6;
+            --stage: #000;
+        }
+        html[data-theme="dark"] {
+            --bg-panel: #1B1E25;
+            --bg-app: #1B1E25;
+            --text-primary: #e8eaed;
+            --text-secondary: #8b929e;
+            --text-muted: #636a76;
+            --border: #3A3E47;
+            --accent: #A3DAC5;
+            --green: #43b581;
+            --red: #f04747;
+            --hover: #2E323B;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            background: var(--bg-app);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+        .titlebar {
+            height: 32px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            padding-left: 12px;
+            gap: 8px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+            --wails-draggable: drag;
+        }
+        .titlebar .ic { width: 14px; height: 14px; flex-shrink: 0; }
+        .titlebar .accent { color: var(--accent); }
+        .name { color: var(--text-primary); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sep { color: var(--text-muted); }
+        .timer { font-variant-numeric: tabular-nums; }
+        .spacer { flex: 1; }
+        .wbtn {
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            --wails-draggable: no-drag;
+        }
+        .wbtn:hover { background: var(--hover); color: var(--text-primary); }
+        .wbtn.red { color: var(--red); }
+        .wbtn.active { color: var(--accent); }
+        .wbtn svg { width: 14px; height: 14px; }
+        .vsep { width: 1px; height: 16px; background: var(--border); margin: 0 6px; flex-shrink: 0; }
+        .stage {
+            flex: 1;
+            min-height: 0;
+            background: var(--stage);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .stage canvas { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+        .ended {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.6);
+            color: #e8eaed;
+            font-size: 14px;
+        }
+        .ended[hidden] { display: none; }
+        /* Полноэкранный режим — заголовок прячем, картинка на весь экран */
+        body.fullscreen .titlebar { display: none; }
+    </style>
+</head>
+<body>
+    <div class="titlebar" id="titlebar">
+        <i data-lucide="monitor" class="ic accent"></i>
+        <span id="title" class="name"></span>
+        <span class="sep">·</span>
+        <span id="session"></span>
+        <span class="sep">·</span>
+        <span id="timer" class="timer">00:00</span>
+        <div class="spacer"></div>
+        <button id="btn-mic" class="wbtn" type="button"><i data-lucide="mic"></i></button>
+        <button id="btn-sound" class="wbtn" type="button"><i data-lucide="headphones"></i></button>
+        <button id="btn-back" class="wbtn" type="button"><i data-lucide="undo-2"></i></button>
+        <button id="btn-fs" class="wbtn" type="button"><i data-lucide="maximize"></i></button>
+        <button id="btn-leave" class="wbtn red" type="button"><i data-lucide="phone-off"></i></button>
+        <div class="vsep"></div>
+        <button id="btn-pin" class="wbtn active" type="button"><i data-lucide="pin"></i></button>
+        <button id="btn-min" class="wbtn" type="button"><i data-lucide="minus"></i></button>
+        <button id="btn-max" class="wbtn" type="button"><i data-lucide="square"></i></button>
+        <button id="btn-close" class="wbtn" type="button"><i data-lucide="x"></i></button>
+    </div>
+    <div class="stage" id="stage">
+        <canvas id="screen" width="1280" height="720"></canvas>
+        <div id="ended" class="ended" hidden></div>
+    </div>
+
+    <script src="/src/lucide.min.js"></script>
+    <script type="module">
+        import { Events, Call } from "/wails/runtime.js";
+        import { createScreenDecoder } from "/src/modules/screen-decoder.js";
+
+        const SVC = "vox_app/internal/services.ScreenShareService.";
+        const params = new URLSearchParams(window.location.search);
+        const peer = params.get("peer") || "";
+        let startedAt = parseInt(params.get("startedAt") || "0", 10) || 0;
+        if (params.get("theme")) document.documentElement.setAttribute("data-theme", params.get("theme"));
+
+        let lang = "en";
+        try { lang = navigator.language.substring(0, 2); } catch (e) { /* default */ }
+        const i18n = {
+            en: { mic: "Microphone", mic_off: "Microphone off", sound: "Sound", sound_off: "Sound off", back: "Back to app", fs: "Fullscreen", leave: "Leave call", pin: "Always on top", min: "Minimize", max: "Maximize", close: "Close", ended: "Screen sharing ended", calling: "Calling…" },
+            ru: { mic: "Микрофон", mic_off: "Микрофон выключен", sound: "Звук", sound_off: "Звук выключен", back: "Вернуть в приложение", fs: "На весь экран", leave: "Выйти из звонка", pin: "Поверх всех окон", min: "Свернуть", max: "Развернуть", close: "Закрыть", ended: "Демонстрация завершена", calling: "Вызов…" },
+        };
+        const tr = i18n[lang] || i18n.en;
+
+        const $ = (id) => document.getElementById(id);
+        $("title").textContent = params.get("title") || "";
+        $("session").textContent = params.get("session") || "";
+        $("btn-back").title = tr.back;
+        $("btn-fs").title = tr.fs;
+        $("btn-leave").title = tr.leave;
+        $("btn-pin").title = tr.pin;
+        $("btn-min").title = tr.min;
+        $("btn-max").title = tr.max;
+        $("btn-close").title = tr.close;
+        $("ended").textContent = tr.ended;
+
+        // Смена иконки: lucide заменяет <i data-lucide> на <svg>, для новой
+        // иконки возвращаем <i> и просим перерисовать (как в calls.js).
+        function setIcon(btn, name) {
+            const cur = btn.querySelector("svg.lucide, i[data-lucide]");
+            if (cur && cur.classList.contains("lucide-" + name)) return;
+            const i = document.createElement("i");
+            i.setAttribute("data-lucide", name);
+            if (cur) cur.replaceWith(i); else btn.appendChild(i);
+            lucide.createIcons({ nodes: [btn] });
+        }
+
+        const state = { muted: false, deafened: false };
+        function applyState(s) {
+            if (typeof s.muted === "boolean") state.muted = s.muted;
+            if (typeof s.deafened === "boolean") state.deafened = s.deafened;
+            // Подпись — своя у окна (из URL): состояние общее для всех окон.
+            if (s.session) $("session").textContent = s.session;
+            if (typeof s.startedAt === "number") startedAt = s.startedAt;
+            setIcon($("btn-mic"), state.muted ? "mic-off" : "mic");
+            $("btn-mic").classList.toggle("red", state.muted);
+            $("btn-mic").title = state.muted ? tr.mic_off : tr.mic;
+            setIcon($("btn-sound"), state.deafened ? "headphone-off" : "headphones");
+            $("btn-sound").classList.toggle("red", state.deafened);
+            $("btn-sound").title = state.deafened ? tr.sound_off : tr.sound;
+            tick();
+        }
+
+        function mmss(ms) {
+            const s = Math.max(0, Math.floor(ms / 1000));
+            const m = Math.floor(s / 60);
+            return String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+        }
+        function tick() {
+            $("timer").textContent = startedAt ? mmss(Date.now() - startedAt) : tr.calling;
+        }
+        setInterval(tick, 1000);
+
+        // --- кадры: тот же vox:screen-frame, что и в главном окне; декодируем только своего пира ---
+        const canvas = $("screen");
+        const decoder = createScreenDecoder({
+            canvas,
+            onNeedKeyframe: () => Call.ByName(SVC + "RequestScreenKeyframe", peer).catch(() => {}),
+        });
+        let lastFrameId = 0;
+        Events.On("vox:screen-frame", (e) => {
+            const d = e && e.data;
+            if (!d || d.peerId !== peer) return;
+            const w = d.width || 1280, h = d.height || 720, fid = d.frameId || 0;
+            if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+            if (fid !== 0 && fid <= lastFrameId) return;
+            if (decoder.push(d, fid, w, h)) lastFrameId = fid;
+        });
+
+        let closing = false;
+        function finish() {
+            if (closing) return;
+            closing = true;
+            $("ended").hidden = false;
+            setTimeout(() => Call.ByName(SVC + "ViewerAction", peer, "close").catch(() => {}), 1500);
+        }
+        Events.On("vox:screen-share-ended", (e) => {
+            if (e && e.data && e.data.peerId === peer) finish();
+        });
+        Events.On("vox:screen-viewer-state", (e) => {
+            const s = e && e.data;
+            if (!s) return;
+            if (s.ended) { finish(); return; }
+            applyState(s);
+        });
+        Events.On("vox:call-ended", finish);
+
+        // --- кнопки: своё окно — ViewerAction, звонок — ViewerCommand в главное окно ---
+        // Окон может быть несколько — каждый вызов со своим пиром.
+        const action = (a) => () => Call.ByName(SVC + "ViewerAction", peer, a).catch(() => {});
+        const command = (c) => () => Call.ByName(SVC + "ViewerCommand", peer, c).catch(() => {});
+        $("btn-mic").addEventListener("click", command("mute"));
+        $("btn-sound").addEventListener("click", command("deafen"));
+        $("btn-back").addEventListener("click", command("back"));
+        $("btn-leave").addEventListener("click", command("leave"));
+        $("btn-min").addEventListener("click", action("minimise"));
+        $("btn-max").addEventListener("click", action("maximise"));
+        $("btn-close").addEventListener("click", action("close"));
+        $("titlebar").addEventListener("dblclick", (e) => { if (!e.target.closest(".wbtn")) action("maximise")(); });
+
+        let pinned = true;
+        $("btn-pin").addEventListener("click", () => {
+            pinned = !pinned;
+            $("btn-pin").classList.toggle("active", pinned);
+            setIcon($("btn-pin"), pinned ? "pin" : "pin-off");
+            action(pinned ? "pin" : "unpin")();
+        });
+
+        let fullscreen = false;
+        function toggleFullscreen() {
+            fullscreen = !fullscreen;
+            document.body.classList.toggle("fullscreen", fullscreen);
+            setIcon($("btn-fs"), fullscreen ? "minimize-2" : "maximize");
+            action("fullscreen")();
+        }
+        $("btn-fs").addEventListener("click", toggleFullscreen);
+        $("stage").addEventListener("dblclick", toggleFullscreen);
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && fullscreen) toggleFullscreen();
+        });
+
+        lucide.createIcons();
+        applyState({});
+    </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Копировать в build/remote/<node>/ssh.conf (каталог в .gitignore).
+NODE_SSH=user@203.0.113.10
+NODE_SSH_PORT=22
+# Только для узлов с NODE_SETUP=auto (build/setup-node.sh):
+#NODE_ROOT_SSH=root@203.0.113.10

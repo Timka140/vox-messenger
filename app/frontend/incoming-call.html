@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Incoming Call</title>
+    <link rel="icon" type="image/png" href="src/icon/icon_256x256.png">
+    <style>
+        /* Окно входящего личного звонка (макет design/vox-redesign/IncomingCall):
+           360×236 по центру экрана, поверх всех, показывается БЕЗ захвата
+           фокуса (WS_EX_NOACTIVATE в main.go) — горячие клавиши работают только
+           когда окно в фокусе. Закрыть окно = отклонить. Рингтон играет главное
+           окно. Токены — копия variables.css / themes/dark.css. */
+        :root {
+            --bg-panel: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --border: #e5e7eb;
+            --accent: #5DB5A6;
+            --green: #22c55e;
+            --red: #ef4444;
+        }
+        html[data-theme="dark"] {
+            --bg-panel: #2E323B;
+            --text-primary: #e8eaed;
+            --text-secondary: #8b929e;
+            --text-muted: #636a76;
+            --border: #3A3E47;
+            --accent: #A3DAC5;
+            --green: #43b581;
+            --red: #f04747;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-panel);
+            color: var(--text-primary);
+            padding: 20px 20px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            user-select: none;
+            --wails-draggable: drag;
+        }
+        .avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+            text-transform: uppercase;
+            animation: rings 2s infinite;
+            position: relative;
+        }
+        /* Фото звонящего поверх букв (/vox-avatar/<peerId>); нет фото — 404, буквы. */
+        .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        @keyframes rings {
+            0%   { box-shadow: 0 0 0 8px rgba(67,181,129,0.22), 0 0 0 16px rgba(67,181,129,0.10); }
+            50%  { box-shadow: 0 0 0 12px rgba(67,181,129,0.16), 0 0 0 22px rgba(67,181,129,0.06); }
+            100% { box-shadow: 0 0 0 8px rgba(67,181,129,0.22), 0 0 0 16px rgba(67,181,129,0.10); }
+        }
+        .who { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .name { font-size: 16px; font-weight: 700; }
+        .sub { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+        .sub svg { width: 12px; height: 12px; }
+        .sub.busy { color: var(--red); }
+        .actions { display: flex; gap: 10px; width: 100%; margin-top: 4px; --wails-draggable: no-drag; }
+        .btn {
+            flex: 1;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        .btn svg { width: 16px; height: 16px; }
+        .btn:hover { filter: brightness(1.08); }
+        .btn:active { transform: scale(0.98); }
+        .btn.decline { background: var(--red); }
+        .btn.accept { background: var(--green); }
+        .reply {
+            font-size: 12px;
+            color: var(--accent);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            --wails-draggable: no-drag;
+        }
+        .reply:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="avatar" id="avatar">?</div>
+    <div class="who">
+        <span class="name" id="name">…</span>
+        <span class="sub" id="sub"><i data-lucide="phone-incoming"></i><span id="sub-text"></span></span>
+    </div>
+    <div class="actions">
+        <button class="btn decline" id="reject-btn" type="button"><i data-lucide="phone-off"></i><span id="reject-lbl"></span></button>
+        <button class="btn accept" id="accept-btn" type="button"><i data-lucide="phone"></i><span id="accept-lbl"></span></button>
+    </div>
+    <button class="reply" id="reply-btn" type="button"></button>
+
+    <script src="/src/lucide.min.js"></script>
+    <script type="module">
+        import { Events, Call } from "/wails/runtime.js";
+
+        const CALLS = "vox_app/internal/services.CallsService.";
+        const params = new URLSearchParams(window.location.search);
+        let callId = params.get("callId") || "";
+        let nickname = params.get("nickname") || "Unknown";
+        let peerId = params.get("peerId") || "";
+        const callType = params.get("type") || "dm";
+        const busy = params.get("busy") === "true";
+        if (params.get("theme")) document.documentElement.setAttribute("data-theme", params.get("theme"));
+
+        let lang = "en";
+        try { lang = navigator.language.substring(0, 2); } catch (e) { /* default */ }
+        const i18n = {
+            en: { incoming: "Incoming call · P2P", invites: "Invites you to a call", busy: "You are in another call", decline: "Decline", accept: "Accept", reply: "Reply with a message" },
+            ru: { incoming: "Входящий звонок · P2P", invites: "Приглашает в звонок", busy: "Вы в другом звонке", decline: "Отклонить", accept: "Принять", reply: "Ответить сообщением" },
+        };
+        const tr = i18n[lang] || i18n.en;
+
+        const $ = (id) => document.getElementById(id);
+        function colorFromId(hexStr) {
+            let h = 0;
+            for (let i = 0; i < hexStr.length && i < 8; i++) h = hexStr.charCodeAt(i) + ((h << 5) - h);
+            return "hsl(" + ((h % 360 + 360) % 360) + ", 55%, 55%)";
+        }
+        function render() {
+            $("avatar").textContent = nickname.substring(0, 2);
+            $("avatar").style.background = colorFromId(peerId);
+            if (peerId) {
+                const img = document.createElement("img");
+                img.alt = "";
+                img.onerror = () => img.remove();
+                img.src = "/vox-avatar/" + encodeURIComponent(peerId);
+                $("avatar").appendChild(img);
+            }
+            $("name").textContent = nickname;
+            $("sub-text").textContent = busy ? tr.busy : (callType === "group" ? tr.invites : tr.incoming);
+            $("sub").classList.toggle("busy", busy);
+        }
+        $("reject-lbl").textContent = tr.decline;
+        $("accept-lbl").textContent = tr.accept;
+        $("reply-btn").textContent = tr.reply;
+        render();
+        lucide.createIcons();
+
+        let done = false;
+        function accept() {
+            if (done || !callId) return;
+            done = true;
+            Call.ByName(CALLS + "AcceptCall", callId).catch((e) => console.error("accept error:", e));
+            // Звонок идёт в главном окне — поднять его.
+            Call.ByName("vox_app/internal/services.NotifyService.OpenTarget", peerId, "").catch(() => {});
+        }
+        function reject(openChat) {
+            if (done || !callId) return;
+            done = true;
+            Call.ByName(CALLS + "RejectCall", callId).catch((e) => console.error("reject error:", e));
+            if (openChat) Call.ByName("vox_app/internal/services.NotifyService.OpenTarget", peerId, "").catch(() => {});
+        }
+        $("accept-btn").addEventListener("click", accept);
+        $("reject-btn").addEventListener("click", () => reject(false));
+        $("reply-btn").addEventListener("click", () => reject(true));
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") accept();
+            else if (e.key === "Escape") reject(false);
+        });
+
+        // Окно закрывает Go (accept/reject/end/timeout). Здесь только не даём
+        // нажать дважды.
+        Events.On("vox:call-ended", () => { done = true; });
+        Events.On("vox:call-accepted", () => { done = true; });
+        // Окно переиспользовано под новый звонок
+        Events.On("vox:call-incoming", (event) => {
+            const d = event && event.data;
+            if (d && d.callId && d.callId !== callId) {
+                callId = d.callId;
+                nickname = d.nickname || "Unknown";
+                peerId = d.peerId || "";
+                done = false;
+                render();
+            }
+        });
+    </script>
+</body>
+</html>

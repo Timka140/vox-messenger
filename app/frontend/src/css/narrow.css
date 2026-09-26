@@ -1,0 +1,162 @@
+/* Узкое окно (макет Narrow, фаза 5c; логика — narrow.js).
+   body.rail — центр уже 600px при полном списке (narrow.js): список чатов = рейка 72px из аватаров.
+   body.narrow-drawer — < 1000: правая панель поверх чата с затемнением. */
+
+#rail-search-btn {
+    display: none;
+}
+
+/* ---------- рейка ---------- */
+body.rail #contacts-panel {
+    width: 72px;
+}
+
+body.rail .contacts-header {
+    padding: 10px 0;
+    justify-content: center;
+}
+
+body.rail .contacts-header .compose-btn {
+    display: none;
+}
+
+body.rail #rail-search-btn {
+    display: flex;
+}
+
+/* Поле поиска — тот же #search-input, всплывает поповером рядом с рейкой */
+body.rail .contacts-header .search-wrap {
+    display: none;
+}
+
+body.rail #contacts-panel.search-open .search-wrap {
+    display: block;
+    position: fixed;
+    left: 148px;
+    top: 8px;
+    width: 280px;
+    z-index: 160;
+    border-radius: 6px;
+    box-shadow: var(--shadow-lg);
+    background: var(--bg-panel);
+}
+
+body.rail .contact-item {
+    position: relative;
+    justify-content: center;
+    padding: 6px 0;
+    border-bottom: none;
+}
+
+body.rail .contact-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+}
+
+/* Тело строки остаётся в DOM (по .contact-name работает фильтр поиска),
+   видим только бейдж непрочитанных — в углу, как на макете. */
+body.rail .contact-body {
+    display: contents;
+}
+
+body.rail .contact-top-row,
+body.rail .contact-preview {
+    display: none;
+}
+
+body.rail .contact-bottom-row {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+}
+
+body.rail .unread-badge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+}
+
+/* Карточка «Вступить в группу» (ссылка в поиске) в 72px не помещается —
+   встаёт поповером под полем поиска, справа от рейки. */
+body.rail .join-card {
+    position: fixed;
+    left: 148px;
+    top: 52px;
+    width: 320px;
+    margin: 0;
+    z-index: 160;
+    box-shadow: var(--shadow-lg);
+    background: var(--bg-panel);
+}
+
+/* Пустое состояние и баннер сигналки в 72px — только иконка */
+body.rail #contacts-list .empty-state .es-title,
+body.rail #contacts-list .empty-state .es-text,
+body.rail #contacts-list .empty-state .es-btn {
+    display: none;
+}
+
+body.rail .signal-banner {
+    margin: 6px;
+    padding: 8px;
+    justify-content: center;
+}
+
+body.rail .sb-text,
+body.rail .sb-retry {
+    display: none;
+}
+
+/* Панель пользователя в низу nav, вертикально */
+body.rail #nav-strip #user-bar {
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 0 0;
+    margin-top: 6px;
+    border-top: 1px solid #2E323B;
+    background: transparent;
+}
+
+body.rail #nav-strip .user-bar-state {
+    flex-direction: column;
+    gap: 6px;
+    width: auto;
+}
+
+body.rail #nav-strip .user-bar-state > div {
+    flex-direction: column;
+    margin-left: 0 !important;
+}
+
+body.rail #nav-strip .user-bar-info,
+body.rail #nav-strip #share-contact-btn,
+body.rail #nav-strip .user-bar-dot,
+body.rail #nav-strip #user-bar-call-timer,
+body.rail #nav-strip #user-bar-call-count,
+body.rail #nav-strip #user-bar-voice-name {
+    display: none;
+}
+
+/* ---------- выдвижная правая панель ---------- */
+#info-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 140;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+#info-backdrop[hidden] {
+    display: none;
+}
+
+body.narrow-drawer #info-panel.open {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 150;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+}

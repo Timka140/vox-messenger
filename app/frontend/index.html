@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vox</title>
+    <link rel="icon" type="image/png" href="src/icon/icon_256x256.png">
+    <!-- Variables & themes -->
+    <link rel="stylesheet" href="src/css/variables.css">
+    <link rel="stylesheet" href="src/css/themes/dark.css">
+    <!-- Base & components -->
+    <link rel="stylesheet" href="src/css/base.css">
+    <link rel="stylesheet" href="src/css/layout.css">
+    <link rel="stylesheet" href="src/css/contacts.css">
+    <link rel="stylesheet" href="src/css/chat.css">
+    <link rel="stylesheet" href="src/css/panels.css">
+    <link rel="stylesheet" href="src/css/setup.css">
+    <link rel="stylesheet" href="src/css/settings.css">
+    <link rel="stylesheet" href="src/css/voice.css">
+    <link rel="stylesheet" href="src/css/stage.css">
+    <link rel="stylesheet" href="src/css/profile.css">
+    <link rel="stylesheet" href="src/css/dialogs.css">
+    <link rel="stylesheet" href="src/css/contextmenu.css">
+    <link rel="stylesheet" href="src/css/updates.css">
+    <link rel="stylesheet" href="src/css/toast.css">
+    <link rel="stylesheet" href="src/css/lightbox.css">
+    <link rel="stylesheet" href="src/css/attachment-bubble.css">
+    <link rel="stylesheet" href="src/css/attach-picker.css">
+    <link rel="stylesheet" href="src/css/avatar.css">
+    <link rel="stylesheet" href="src/css/states.css">
+    <link rel="stylesheet" href="src/css/narrow.css">
+</head>
+<body>
+    <!-- Force Update Modal (блокирует UI — обязательное обновление) -->
+    <div id="update-force-modal" style="display:none;" class="update-force-overlay">
+        <div class="update-force-content">
+            <h2 data-i18n="update.force_title">Требуется обновление</h2>
+            <p data-i18n="update.force_message">Эта версия больше не поддерживается. Для продолжения работы необходимо установить последнее обновление.</p>
+            <div class="update-force-version">
+                <span data-i18n="update.version_label">Версия:</span>
+                <strong id="update-force-version">—</strong>
+            </div>
+            <div id="update-force-changelog" class="update-force-changelog"></div>
+            <div id="update-force-progress-container" style="display:none; margin-top:12px;">
+                <div class="update-progress-track"><div id="update-force-progress-bar" class="update-progress-bar"></div></div>
+                <span id="update-force-progress-text">0%</span>
+            </div>
+            <button id="update-force-install" class="update-btn update-btn-primary update-btn-large" data-i18n="update.button.install">Обновить</button>
+        </div>
+    </div>
+
+    <!-- Setup Screen (first launch) -->
+    <div id="setup-screen">
+        <div class="setup-container">
+            <h1 data-i18n="setup.title">Vox</h1>
+
+            <div class="setup-section">
+                <div class="password-wrap">
+                    <input type="password" id="create-passphrase" placeholder="Secret phrase..." data-i18n-placeholder="setup.create.pass_placeholder" autocomplete="off">
+                    <button type="button" class="password-toggle" data-target="create-passphrase" title="Show/hide" data-i18n-title="setup.new.show_hide">
+                        <i data-lucide="eye" class="icon-18"></i>
+                    </button>
+                </div>
+                <button id="generate-btn" class="setup-btn-primary" data-i18n="setup.create">Create Account</button>
+            </div>
+
+            <a href="#" id="setup-show-import" class="setup-link" data-i18n="setup.have_backup">Have a backup?</a>
+
+            <div id="setup-import-section" class="setup-section" style="display:none;">
+                <div class="password-wrap">
+                    <input type="password" id="import-passphrase" placeholder="Secret phrase..." data-i18n-placeholder="setup.create.pass_placeholder" autocomplete="off">
+                    <button type="button" class="password-toggle" data-target="import-passphrase" title="Show/hide" data-i18n-title="setup.new.show_hide">
+                        <i data-lucide="eye" class="icon-18"></i>
+                    </button>
+                </div>
+                <input type="text" id="import-key-input" placeholder="vox-key://..." data-i18n-placeholder="setup.import.key_placeholder" autocomplete="off" class="mono-input">
+                <button id="import-btn" class="setup-btn-secondary" data-i18n="setup.import.button">Import Key</button>
+            </div>
+
+            <p id="setup-error" class="error-text"></p>
+        </div>
+    </div>
+
+    <!-- Recovery Screen (key lost, DB recreated) -->
+    <div id="recovery-screen" style="display:none;">
+        <div class="setup-container">
+            <h1 data-i18n="setup.title">Vox</h1>
+
+            <div class="recovery-warning">
+                <i data-lucide="alert-triangle" class="icon-24"></i>
+                <h3 data-i18n="recovery.title">Key Lost</h3>
+                <p data-i18n="recovery.desc">Your data is encrypted and inaccessible. Restore your identity from backup or create a new account.</p>
+            </div>
+
+            <div class="setup-section">
+                <div class="password-wrap">
+                    <input type="password" id="recovery-passphrase" placeholder="Secret phrase..." data-i18n-placeholder="setup.create.pass_placeholder" autocomplete="off">
+                    <button type="button" class="password-toggle" data-target="recovery-passphrase" title="Show/hide" data-i18n-title="setup.new.show_hide">
+                        <i data-lucide="eye" class="icon-18"></i>
+                    </button>
+                </div>
+                <input type="text" id="recovery-key-input" placeholder="vox-key://..." data-i18n-placeholder="setup.import.key_placeholder" autocomplete="off" class="mono-input">
+                <button id="recovery-restore-btn" class="setup-btn-primary" data-i18n="recovery.restore">Restore</button>
+            </div>
+
+            <div class="setup-divider"><span data-i18n="recovery.or">or</span></div>
+
+            <p class="setup-hint" data-i18n="recovery.forgot">Forgot password?</p>
+            <button id="recovery-fresh-btn" class="setup-btn-secondary" data-i18n="recovery.fresh">Create New Account</button>
+
+            <p id="recovery-error" class="error-text"></p>
+        </div>
+    </div>
+
+    <!-- App Shell (фиксированный баннер обновления + три полноэкранных режима) -->
+    <div id="app-shell">
+        <!-- Update Banner — единственный узел, виден на всех трёх экранах (app/settings/contacts) -->
+        <div id="update-banner" style="display:none;">
+            <div class="update-banner-content">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                <div class="update-banner-text">
+                    <span data-i18n="update.available">Доступно обновление</span>
+                    <strong id="update-banner-version">—</strong>
+                    <span id="update-banner-changelog" class="update-banner-changelog"></span>
+                </div>
+                <div id="update-progress-container" style="display:none;">
+                    <div class="update-progress-track"><div id="update-progress-bar" class="update-progress-bar"></div></div>
+                    <span id="update-progress-text">0%</span>
+                </div>
+                <button id="update-banner-install" class="update-btn update-btn-primary" data-i18n="update.button.install">Обновить</button>
+                <button id="update-banner-later" class="update-btn update-btn-secondary" data-i18n="update.button.later">Позже</button>
+            </div>
+        </div>
+        <div id="app-screens">
+
+    <!-- Main App -->
+    <div id="app" style="display:none;">
+        <!-- Nav Strip: 68px, подписи под иконками (макет Main/NavMap). Гамбургера
+             и страницы «Звонки» нет; «Контакты» — режим левой панели с бейджем
+             входящих заявок; «Эфир» показывает meshtastic.js при включённом LoRa. -->
+        <nav id="nav-strip">
+            <button class="nav-item active" data-nav="messages"><i data-lucide="message-square" class="icon-22"></i><span data-i18n="nav.messages">Chats</span><span class="nav-badge" id="chats-nav-badge" hidden></span></button>
+            <button class="nav-item" data-nav="groups"><i data-lucide="users" class="icon-22"></i><span data-i18n="nav.groups">Groups</span><span class="nav-badge" id="groups-nav-badge" hidden></span></button>
+            <button class="nav-item" data-nav="contacts"><i data-lucide="contact" class="icon-22"></i><span data-i18n="nav.contacts">Contacts</span><span class="nav-badge" id="contacts-nav-badge" hidden></span></button>
+            <button class="nav-item" data-nav="mesh" style="display:none;"><i data-lucide="radio-tower" class="icon-22"></i><span data-i18n="nav.mesh">Mesh</span><span class="nav-badge" id="mesh-nav-badge" style="display:none;"></span></button>
+            <div class="nav-spacer"></div>
+            <button class="nav-item" data-nav="settings"><i data-lucide="settings" class="icon-22"></i><span data-i18n="nav.settings">Settings</span></button>
+        </nav>
+
+        <!-- Contacts Panel -->
+        <aside id="contacts-panel">
+            <div class="contacts-header">
+                <!-- Лупа рейки узкого окна (narrow.js): открывает поле поиска поповером -->
+                <button id="rail-search-btn" class="compose-btn" data-i18n-title="search.placeholder" title="Search">
+                    <i data-lucide="search" class="icon-20"></i>
+                </button>
+                <div class="search-wrap">
+                    <i data-lucide="search" class="search-icon icon-16"></i>
+                    <input type="text" id="search-input" data-i18n-placeholder="search.placeholder" placeholder="Search" autocomplete="off">
+                </div>
+                <button id="compose-btn" class="compose-btn" data-i18n-title="compose.title" title="Create">
+                    <i data-lucide="square-pen" class="icon-20"></i>
+                </button>
+                <button id="contacts-add-btn" class="compose-btn" data-i18n-title="contacts.add_by_tag" title="Add friend by tag" style="display:none;">
+                    <i data-lucide="user-plus" class="icon-20"></i>
+                </button>
+            </div>
+            <!-- Нет связи с сигнал-сервером (signal-banner.js, макет EmptyStates) -->
+            <div id="signal-banner" class="signal-banner" hidden>
+                <i data-lucide="wifi-off" class="icon-16 sb-icon"></i>
+                <div class="sb-text">
+                    <span class="sb-title" data-i18n="signal.banner_title">No connection to the signal server</span>
+                    <span class="sb-desc" data-i18n="signal.banner_desc">Online friends are unreachable; messages go out once connected.</span>
+                </div>
+                <button type="button" class="sb-retry" id="signal-banner-retry" data-i18n="signal.retry">Retry</button>
+            </div>
+            <div id="contacts-list"></div>
+            <div id="user-bar">
+                <!-- State 1: Normal -->
+                <div id="user-bar-normal" class="user-bar-state">
+                    <div class="user-bar-avatar" id="user-avatar">?</div>
+                    <div class="user-bar-info">
+                        <span id="username">User</span>
+                        <span class="user-bar-dot">&middot;</span>
+                        <span id="status" class="user-bar-status">offline</span>
+                    </div>
+                    <button id="share-contact-btn" class="compose-btn" data-i18n-title="sidebar.copy_uri" title="Copy contact URI" style="margin-left:auto">
+                        <i data-lucide="share-2" class="icon-18"></i>
+                    </button>
+                </div>
+                <!-- State 2: In call -->
+                <div id="user-bar-call" class="user-bar-state" style="display:none;">
+                    <span class="user-bar-call-dot"></span>
+                    <span id="user-bar-call-timer">00:00</span>
+                    <span class="user-bar-dot">&middot;</span>
+                    <span id="user-bar-call-count">0</span>
+                    <div style="margin-left:auto;display:flex;gap:4px;">
+                        <button id="user-bar-call-mute" class="voice-action-btn" title="Mute">
+                            <i data-lucide="mic" class="icon-16"></i>
+                        </button>
+                        <button id="user-bar-call-screen" class="voice-action-btn" title="Share screen">
+                            <i data-lucide="monitor-up" class="icon-16"></i>
+                        </button>
+                        <button id="user-bar-call-end" class="voice-action-btn voice-disconnect" title="End">
+                            <i data-lucide="phone-off" class="icon-16"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- State 3: In voice channel -->
+                <div id="user-bar-voice" class="user-bar-state" style="display:none;">
+                    <i data-lucide="volume-2" class="icon-16" style="color:var(--green)"></i>
+                    <span id="user-bar-voice-name">&mdash;</span>
+                    <div style="margin-left:auto;display:flex;gap:4px;">
+                        <button id="user-bar-voice-mute" class="voice-action-btn" title="Mute">
+                            <i data-lucide="mic" class="icon-16"></i>
+                        </button>
+                        <button id="user-bar-voice-deafen" class="voice-action-btn" title="Deafen">
+                            <i data-lucide="headphones" class="icon-16"></i>
+                        </button>
+                        <button id="user-bar-voice-screen" class="voice-action-btn" title="Share screen">
+                            <i data-lucide="monitor-up" class="icon-16"></i>
+                        </button>
+                        <button id="user-bar-voice-disconnect" class="voice-action-btn voice-disconnect" title="Disconnect">
+                            <i data-lucide="phone-off" class="icon-16"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Затемнение под выдвижной правой панелью (< 1000px, narrow.js) -->
+        <div id="info-backdrop" hidden></div>
+
+        <!-- Chat Area -->
+        <main id="chat-area">
+            <!-- Полоска звонка в чужом чате (call-bar.js): единственный след
+                 звонка/голосового канала, пока открыт другой чат. -->
+            <div id="call-bar" class="call-bar" hidden>
+                <span class="call-bar-dot"></span>
+                <span id="call-bar-name" class="call-bar-name"></span>
+                <span class="stage-sep">·</span>
+                <span id="call-bar-timer" class="stage-timer">00:00</span>
+                <span id="call-bar-sharer-wrap" class="call-bar-sharer" hidden>
+                    <span class="stage-sep">·</span>
+                    <i data-lucide="monitor" class="icon-14 stage-bar-icon"></i>
+                    <span id="call-bar-sharer"></span>
+                </span>
+                <button id="call-bar-goto" class="call-bar-goto" type="button">
+                    <i data-lucide="arrow-left" class="icon-14"></i><span data-i18n="callbar.to_call">To call</span>
+                </button>
+            </div>
+            <header id="chat-header" style="display:none;">
+                <div class="chat-header-info">
+                    <h2 id="chat-peer-name"></h2>
+                    <span id="chat-peer-status"><span class="status-dot online"></span> <span data-i18n="chat.online">Online</span></span>
+                </div>
+                <!-- Поиск по чату (chat-search.js, макет ChatSearch): встаёт вместо кнопок -->
+                <div id="chat-search" class="chat-search" hidden>
+                    <div class="chat-search-field">
+                        <i data-lucide="search" class="icon-14"></i>
+                        <input id="chat-search-input" type="text" autocomplete="off" data-i18n-placeholder="search.in_chat" placeholder="Search in chat">
+                        <span id="chat-search-count" class="chat-search-count"></span>
+                    </div>
+                    <button id="chat-search-up" class="chat-search-btn" type="button" data-i18n-title="search.prev" title="Earlier"><i data-lucide="chevron-up" class="icon-16"></i></button>
+                    <button id="chat-search-down" class="chat-search-btn" type="button" data-i18n-title="search.next" title="Later"><i data-lucide="chevron-down" class="icon-16"></i></button>
+                    <button id="chat-search-from" class="chat-search-from" type="button"><i data-lucide="user" class="icon-14"></i><span id="chat-search-from-lbl"></span></button>
+                    <div class="chat-search-spacer"></div>
+                    <button id="chat-search-close" class="chat-search-btn" type="button" data-i18n-title="dialog.cancel" title="Close"><i data-lucide="x" class="icon-16"></i></button>
+                </div>
+                <div class="chat-header-actions">
+                    <button class="header-action" id="search-btn" data-i18n-title="search.in_chat" title="Search in chat">
+                        <i data-lucide="search" class="icon-20"></i>
+                    </button>
+                    <button class="header-action" id="call-btn" data-i18n-title="chat.call" title="Call" style="display:none;">
+                        <i data-lucide="phone" class="icon-20"></i>
+                    </button>
+                    <button class="header-action" id="voice-join-btn" data-i18n-title="chat.join_voice" title="Join Voice" style="display:none;">
+                        <i data-lucide="audio-lines" class="icon-20"></i>
+                        <span class="voice-count" id="voice-count"></span>
+                    </button>
+                    <button class="header-action" id="info-toggle-btn" data-i18n-title="chat.info" title="Info">
+                        <i data-lucide="info" class="icon-20"></i>
+                    </button>
+                    <!-- Меню «…» (chat-menu.js, макет HeaderMenus) -->
+                    <button class="header-action" id="chat-more-btn" data-i18n-title="menu.title" title="More">
+                        <i data-lucide="ellipsis" class="icon-20"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Панель выбора сообщений (messages.js, макет ChatSelect): заменяет
+                 шапку чата, пока идёт выбор. -->
+            <div id="select-bar" class="select-bar" hidden>
+                <button id="select-close" class="header-action" type="button" data-i18n-title="dialog.cancel" title="Cancel"><i data-lucide="x" class="icon-18"></i></button>
+                <span id="select-count" class="select-count"></span>
+                <div class="select-spacer"></div>
+                <button id="select-forward" class="select-action" type="button"><i data-lucide="forward" class="icon-16"></i><span data-i18n="select.forward">Forward</span></button>
+                <button id="select-copy" class="select-action" type="button" data-i18n-title="select.copy_hint" title="Copy (Ctrl+C)"><i data-lucide="copy" class="icon-16"></i><span data-i18n="select.copy">Copy</span></button>
+                <button id="select-delete" class="select-action danger" type="button" data-i18n-title="select.delete_hint" title="Delete (Delete)"><i data-lucide="trash-2" class="icon-16"></i><span data-i18n="select.delete">Delete</span></button>
+            </div>
+
+            <!-- Сцена звонка / голосового канала (stage.js). Показывается вместо
+                 ленты, пока открыт чат-владелец звонка или группа, в чьём голосовом
+                 канале мы сидим. Содержимое рендерит stage.js; здесь только каркас. -->
+            <section id="call-stage" class="call-stage" hidden>
+                <header class="stage-header">
+                    <div class="stage-header-info">
+                        <span id="stage-title" class="stage-title"></span>
+                        <span class="stage-sep">·</span>
+                        <span id="stage-sub" class="stage-sub"></span>
+                        <span class="stage-sep">·</span>
+                        <span id="stage-count" class="stage-sub"></span>
+                        <span class="stage-sep">·</span>
+                        <span id="stage-timer" class="stage-timer">00:00</span>
+                        <i id="stage-signal" data-lucide="signal" class="icon-14 stage-signal" title=""></i>
+                    </div>
+                    <div class="stage-header-actions">
+                        <button id="stage-invite" class="header-action stage-invite-btn" data-i18n-title="stage.invite" title="Invite">
+                            <i data-lucide="user-plus" class="icon-16"></i><span data-i18n="stage.invite">Invite</span>
+                        </button>
+                        <button id="stage-chat-toggle" class="header-action" data-i18n-title="chat.info" title="Info">
+                            <i data-lucide="message-square" class="icon-20"></i>
+                        </button>
+                        <!-- «…» звонка (макет HeaderMenus): всё про звонок, не про чат -->
+                        <button id="stage-header-more" class="header-action" data-i18n-title="stage.more" title="More">
+                            <i data-lucide="ellipsis" class="icon-20"></i>
+                        </button>
+                    </div>
+                </header>
+                <div id="stage-body-wrap" class="stage-body-wrap">
+                    <div id="stage-bar" class="stage-bar" hidden>
+                        <i data-lucide="monitor" class="icon-14 stage-bar-icon"></i>
+                        <span id="stage-sharer" class="stage-sharer"></span>
+                        <div id="stage-chips" class="stage-chips"></div>
+                        <div class="stage-bar-spacer"></div>
+                        <button id="stage-split" class="voice-action-btn stage-bar-btn" data-i18n-title="stage.side_by_side" title="Side by side" hidden>
+                            <i data-lucide="layout-grid" class="icon-14"></i>
+                        </button>
+                        <button id="stage-popout" class="voice-action-btn stage-bar-btn" data-i18n-title="stage.popout" title="Pop out">
+                            <i data-lucide="picture-in-picture-2" class="icon-14"></i>
+                        </button>
+                        <button id="stage-fullscreen" class="voice-action-btn stage-bar-btn" data-i18n-title="stage.fullscreen" title="Fullscreen">
+                            <i data-lucide="maximize-2" class="icon-14"></i>
+                        </button>
+                        <button id="stage-collapse" class="voice-action-btn stage-bar-btn" data-i18n-title="stage.collapse" title="Collapse">
+                            <i data-lucide="chevron-down" class="icon-14"></i>
+                        </button>
+                    </div>
+                    <div id="stage-body" class="stage-body"></div>
+                </div>
+                <div id="stage-filmstrip" class="stage-filmstrip" hidden></div>
+                <footer class="stage-controls">
+                    <div class="stage-controls-side"></div>
+                    <div class="stage-controls-center">
+                        <div class="stage-ctl">
+                            <div class="stage-ctl-split">
+                                <button id="stage-mic" class="stage-ctl-btn" data-i18n-title="stage.mic" title="Microphone"><i data-lucide="mic" class="icon-20"></i></button>
+                                <button id="stage-mic-menu" class="stage-ctl-caret" title="…"><i data-lucide="chevron-down" class="icon-14"></i></button>
+                            </div>
+                            <span class="stage-ctl-lbl" data-i18n="stage.mic">Microphone</span>
+                        </div>
+                        <div class="stage-ctl">
+                            <div class="stage-ctl-split">
+                                <button id="stage-sound" class="stage-ctl-btn" data-i18n-title="stage.sound" title="Sound"><i data-lucide="headphones" class="icon-20"></i></button>
+                                <button id="stage-sound-menu" class="stage-ctl-caret" title="…"><i data-lucide="chevron-down" class="icon-14"></i></button>
+                            </div>
+                            <span class="stage-ctl-lbl" data-i18n="stage.sound">Sound</span>
+                        </div>
+                        <div class="stage-ctl">
+                            <button id="stage-share" class="stage-ctl-btn" data-i18n-title="call.share_screen" title="Share screen"><i data-lucide="monitor-up" class="icon-20"></i></button>
+                            <span class="stage-ctl-lbl" id="stage-share-lbl" data-i18n="call.share_screen">Share screen</span>
+                        </div>
+                        <div class="stage-ctl">
+                            <button id="stage-more" class="stage-ctl-btn" data-i18n-title="stage.more" title="More"><i data-lucide="ellipsis" class="icon-20"></i></button>
+                            <span class="stage-ctl-lbl" data-i18n="stage.more">More</span>
+                        </div>
+                    </div>
+                    <div class="stage-controls-side stage-controls-right">
+                        <button id="stage-leave" class="stage-leave-btn"><i data-lucide="phone-off" class="icon-18"></i><span data-i18n="stage.leave">Leave</span></button>
+                    </div>
+                </footer>
+            </section>
+
+            <span id="messages-anchor" hidden></span>
+            <div id="messages" class="messages">
+                <div class="empty-state">
+                    <i data-lucide="message-square" class="icon-empty"></i>
+                    <p data-i18n="chat.empty.title">Select a conversation</p>
+                    <span data-i18n="chat.empty.subtitle">Choose a contact to start messaging</span>
+                </div>
+            </div>
+
+            <!-- Заблокированный личный чат (фаза 7b, blocked.js): вместо строки ввода -->
+            <div id="blocked-banner" class="blocked-banner" hidden>
+                <span class="blocked-banner-text"></span>
+                <button type="button" class="blocked-banner-btn"></button>
+            </div>
+            <div id="input-area" class="input-area" style="display:none;">
+                <!-- «Вниз к новым сообщениям» — показывается, когда лента прокручена вверх (messages.js) -->
+                <button id="scroll-bottom-btn" class="scroll-bottom-btn" type="button" data-i18n-title="chat.scroll_to_new" title="New messages">
+                    <i data-lucide="arrow-down" class="icon-16"></i>
+                </button>
+                <!-- «alina печатает…» (typing.js) -->
+                <div id="typing-indicator" class="typing-indicator" hidden><span class="typing-dots"><i></i><i></i><i></i></span><span class="typing-text"></span></div>
+                <div id="select-composer-note" class="composer-note" hidden data-i18n="select.composer_hidden">Input is hidden while selecting</div>
+                <!-- Recording indicator (hidden by default) -->
+                <div id="recording-bar" class="recording-bar" style="display:none;">
+                    <span class="rec-dot"></span>
+                    <span id="rec-duration">0:00</span>
+                    <div id="rec-waveform" class="rec-waveform"></div>
+                    <button id="rec-cancel-btn" class="rec-action-btn" data-i18n-title="chat.cancel" title="Cancel">
+                        <i data-lucide="x" class="icon-18"></i>
+                    </button>
+                    <button id="rec-send-btn" class="rec-action-btn rec-send" data-i18n-title="chat.send" title="Send">
+                        <i data-lucide="send" class="icon-18"></i>
+                    </button>
+                </div>
+                <!-- Полоса над полем (макет ComposerStates): ответ и редактирование (chat.js)
+                     или превью вложений (composer-attach.js) — одна на всё. -->
+                <div id="composer-strip" class="composer-strip" hidden></div>
+                <!-- Normal input row -->
+                <div id="input-row" class="input-row">
+                    <button id="attach-btn" class="attach-btn" data-i18n-title="attach.title" title="Attach" type="button">
+                        <i data-lucide="paperclip" class="icon-20"></i>
+                    </button>
+                    <textarea id="message-input" rows="1" data-i18n-placeholder="composer.placeholder" placeholder="Message"></textarea>
+                    <button id="record-btn" class="record-btn" data-i18n-title="chat.record" title="Record voice message">
+                        <i data-lucide="mic" class="icon-20"></i>
+                    </button>
+                    <button id="send-mesh-btn" class="send-btn send-mesh-btn" data-i18n-title="chat.send_mesh" title="Send via Mesh (LoRa)" style="display:none;">
+                        <i data-lucide="radio-tower" class="icon-20"></i>
+                    </button>
+                    <button id="send-btn" class="send-btn" data-i18n-title="chat.send" title="Send">
+                        <i data-lucide="send" class="icon-20"></i>
+                    </button>
+                    <button id="edit-confirm-btn" class="send-btn" type="button" data-i18n-title="composer.save_edit" title="Save">
+                        <i data-lucide="check" class="icon-20"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mesh broadcast chat (LoRa plaintext, swaps with normal chat when active) -->
+            <div id="mesh-chat-view" style="display:none; flex:1; flex-direction:column; min-height:0;">
+                <header class="mesh-chat-header">
+                    <i data-lucide="radio-tower" class="icon-20"></i>
+                    <div class="mesh-chat-title">
+                        <h2 data-i18n="mesh.chat.title">Mesh broadcast (LoRa)</h2>
+                        <span class="mesh-chat-subtitle" data-i18n="mesh.chat.subtitle">Plaintext, видно всем в эфире</span>
+                    </div>
+                    <button id="mesh-chat-clear" class="header-action" data-i18n-title="mesh.chat.clear" title="Очистить историю">
+                        <i data-lucide="trash-2" class="icon-18"></i>
+                    </button>
+                </header>
+                <div id="mesh-chat-messages" class="messages mesh-chat-messages"></div>
+                <div class="input-area mesh-chat-input-area">
+                    <div class="input-row">
+                        <textarea id="mesh-chat-input" rows="1" maxlength="2000" data-i18n-placeholder="mesh.chat.placeholder" placeholder="Сообщение в эфир (≤200 байт)…"></textarea>
+                        <button id="mesh-chat-send" class="send-btn" data-i18n-title="chat.send" title="Отправить">
+                            <i data-lucide="send" class="icon-20"></i>
+                        </button>
+                    </div>
+                    <div id="mesh-chat-charcount" class="mesh-chat-charcount">0 / 200</div>
+                </div>
+            </div>
+            <!-- Профиль друга / заявка / поиск по тегу (profile.js): подменяет
+                 ленту в режиме «Контакты», как mesh-chat-view. -->
+            <section id="profile-view" class="profile-view" hidden>
+                <header class="profile-header"><span class="profile-header-title" data-i18n="profile.title">Profile</span></header>
+                <div class="profile-scroll"><div id="profile-body" class="profile-body"></div></div>
+            </section>
+            <!-- Перетаскивание файлов (composer-attach.js, макет ComposerStates):
+                 две зоны data-file-drop-target — рантайм Wails отдаёт пути в Go
+                 (WindowFilesDropped) вместе с id зоны. -->
+            <div id="drop-overlay" class="drop-overlay" hidden>
+                <div id="drop-as-photo" class="drop-zone is-photo" data-file-drop-target>
+                    <i data-lucide="layout-grid" class="icon-24"></i>
+                    <b data-i18n="drop.as_photo">Send as photo</b>
+                    <span data-i18n="drop.as_photo_hint">compressed, album</span>
+                </div>
+                <div id="drop-as-file" class="drop-zone" data-file-drop-target>
+                    <i data-lucide="file-text" class="icon-24"></i>
+                    <b data-i18n="drop.as_file">Send as file</b>
+                    <span data-i18n="drop.as_file_hint">original, no compression</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Info Panel (inline right panel, сжимает chat area) -->
+        <aside id="info-panel">
+            <div class="info-panel-header">
+                <div class="info-tabs">
+                    <!-- Во время сцены звонка (stage.js): Chat | Participants N | Media;
+                         иначе Info | Media. Видимость — calls.js updateInfoTabs. -->
+                    <button class="info-tab" data-info-tab="chat" data-i18n="info.tab_chat" style="display:none;">Chat</button>
+                    <button class="info-tab" data-info-tab="participants" style="display:none;"><span data-i18n="info.tab_participants">Participants</span> <span id="info-tab-participants-count" class="info-tab-count"></span></button>
+                    <button class="info-tab active" data-info-tab="info" data-i18n="info.tab_info">Info</button>
+                    <button class="info-tab" data-info-tab="media" data-i18n="info.tab_media">Media</button>
+                </div>
+                <button id="info-close-btn" class="info-close" data-i18n-title="info.close" title="Close">
+                    <i data-lucide="x" class="icon-18"></i>
+                </button>
+            </div>
+            <div class="info-panel-body">
+                <!-- Tab: Info — рисует info-panel.js (макеты InfoDM, InfoGroup) -->
+                <div id="info-tab-info" class="info-tab-content active"></div>
+                <!-- Tab: Media — рисует info-media.js (макеты InfoMedia, InfoMediaSearch) -->
+                <div id="info-tab-media" class="info-tab-content"></div>
+                <!-- Tab: Chat — сюда stage.js физически переносит #messages и
+                     #input-area, пока показана сцена звонка. -->
+                <div id="info-tab-chat" class="info-tab-content"></div>
+                <!-- Tab: Participants — рендерит stage.js -->
+                <div id="info-tab-participants" class="info-tab-content"></div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Settings Screen — единственный полноэкранный оверлей (макет SettingsMap):
+         7 вкладок, «карточка = один вопрос», автосохранение с индикатором в
+         шапке. id контролов не менять — settings.js завязан на них. -->
+    <div id="settings-screen" style="display:none;">
+        <div class="st-header">
+            <h2 data-i18n="settings.title">Settings</h2>
+            <div class="st-header-right">
+                <span id="settings-saved" class="st-saved" hidden><i data-lucide="check" class="icon-14"></i><span data-i18n="settings.saved">Changes saved</span></span>
+                <button id="settings-close" class="header-action" title="Close" data-i18n-title="settings.close">
+                    <i data-lucide="x" class="icon-18"></i>
+                </button>
+            </div>
+        </div>
+        <div class="st-body">
+            <nav class="st-tabs">
+                <ul>
+                    <li class="active" data-tab="profile"><i data-lucide="user" class="icon-16"></i><span data-i18n="settings.tab.profile">Profile</span></li>
+                    <li data-tab="appearance"><i data-lucide="palette" class="icon-16"></i><span data-i18n="settings.tab.appearance">Appearance</span></li>
+                    <li data-tab="sound"><i data-lucide="headphones" class="icon-16"></i><span data-i18n="settings.tab.sound">Sound</span></li>
+                    <li data-tab="network"><i data-lucide="globe" class="icon-16"></i><span data-i18n="settings.tab.network">Network</span></li>
+                    <li data-tab="advanced"><i data-lucide="sliders-horizontal" class="icon-16"></i><span data-i18n="settings.tab.advanced">Advanced</span></li>
+                    <li data-tab="meshtastic"><i data-lucide="radio-tower" class="icon-16"></i><span data-i18n="settings.tab.meshtastic">Meshtastic</span></li>
+                    <li class="st-tabs-spacer"></li>
+                    <li data-tab="about"><i data-lucide="info" class="icon-16"></i><span data-i18n="settings.tab.about">About</span></li>
+                </ul>
+            </nav>
+            <div class="st-content">
+
+                <!-- ===== Профиль ===== -->
+                <div id="settings-tab-profile" class="settings-tab">
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="user" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.profile.title">Profile</div><div class="st-desc" data-i18n="settings.profile.desc">Name and tag other users see.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.profile.nickname">Nickname</div>
+                            <input type="text" id="nickname-input" placeholder="Enter nickname..." data-i18n-placeholder="settings.profile.placeholder" autocomplete="off" maxlength="32" class="settings-input st-w360">
+                        </div>
+                        <div class="st-row" id="settings-tag-row">
+                            <div class="st-lbl" data-i18n="settings.profile.tag">Your tag</div>
+                            <div class="st-inline">
+                                <span class="mono st-mono" id="settings-my-tag">—</span>
+                                <button id="settings-tag-copy" class="profile-icon-btn" type="button" data-i18n-title="ctx.copy_tag" title="Copy tag"><i data-lucide="copy" class="icon-14"></i></button>
+                                <span class="st-desc" data-i18n="settings.profile.tag_hint">The tag is assigned by the network and cannot be changed.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Фото профиля (avatar-editor.js, макет AvatarEditor) -->
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="image" class="icon-18"></i></div><div><div class="st-h3" data-i18n="avatar.title">Profile photo</div><div class="st-desc" data-i18n="avatar.desc">JPG or PNG up to 10 MB, cropped to 256×256.</div></div></div>
+                        <div class="st-avatar-row">
+                            <div class="st-avatar-wrap">
+                                <div class="st-avatar" id="settings-avatar"></div>
+                                <button type="button" class="st-avatar-cam" id="settings-avatar-cam" data-i18n-title="avatar.upload" title="Upload photo"><i data-lucide="camera" class="icon-14"></i></button>
+                            </div>
+                            <button type="button" id="settings-avatar-upload" class="settings-save-btn" data-i18n="avatar.upload">Upload photo</button>
+                            <button type="button" id="settings-avatar-remove" class="settings-save-btn st-btn-sec" data-i18n="avatar.remove" hidden>Remove</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="link" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.connconfig.export_title">Contact link</div><div class="st-desc" data-i18n="settings.connconfig.export_desc">Share this URI so someone can connect to you directly, without a signal server.</div></div></div>
+                        <div class="settings-row st-w-full">
+                            <input type="text" id="conn-config-output" readonly class="settings-input mono">
+                            <button id="conn-config-copy-btn" class="settings-save-btn st-btn-sec" data-i18n="settings.connconfig.copy">Copy</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="key-round" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.backup.title">Key backup</div><div class="st-desc" data-i18n="settings.backup.desc">Export your identity key encrypted with a passphrase.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.backup.passphrase">Passphrase</div>
+                            <div class="password-wrap settings-input st-w360">
+                                <input type="password" id="export-passphrase" placeholder="Passphrase..." data-i18n-placeholder="settings.backup.placeholder" autocomplete="off">
+                                <button type="button" class="password-toggle" data-target="export-passphrase" title="Show/hide" data-i18n-title="settings.backup.show_hide">
+                                    <i data-lucide="eye" class="icon-18"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl"></div>
+                            <div class="st-inline">
+                                <button id="export-key-btn" class="settings-save-btn" data-i18n="settings.backup.export">Export</button>
+                            </div>
+                        </div>
+                        <div id="export-result" style="display:none;">
+                            <div class="settings-row st-w-full">
+                                <input type="text" id="export-key-output" readonly class="settings-input mono-input">
+                                <button id="export-copy-btn" class="settings-save-btn st-btn-sec" data-i18n="settings.backup.copy">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="shield" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.privacy.title">Privacy</div><div class="st-desc" data-i18n="settings.privacy.desc">Control how your data is shared with other peers.</div></div></div>
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.privacy.share_contacts">Share contacts with peers</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.privacy.share_contacts_desc">Allow other peers to find your friends through you when Signal server is unavailable</span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="contact-sharing-toggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <!-- «Заблокированные» (фаза 7b): список с «Разблокировать» -->
+                        <div class="settings-toggle-row blocked-list-row" id="blocked-list-row" role="button" tabindex="0">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.privacy.blocked">Blocked users</span>
+                                <span class="settings-toggle-desc" id="blocked-count"></span>
+                            </div>
+                            <i data-lucide="chevron-right" class="icon-16"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Внешний вид ===== -->
+                <div id="settings-tab-appearance" class="settings-tab" style="display:none;">
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="palette" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.appearance.title">Theme</div><div class="st-desc" data-i18n="settings.appearance.desc">Choose the interface theme.</div></div></div>
+                        <div class="theme-options">
+                            <div class="theme-card" data-theme="light">
+                                <div class="theme-preview theme-preview-light"><div class="tp-nav"></div><div class="tp-sidebar"></div><div class="tp-chat"></div></div>
+                                <span data-i18n="settings.appearance.light">Light</span>
+                            </div>
+                            <div class="theme-card" data-theme="dark">
+                                <div class="theme-preview theme-preview-dark"><div class="tp-nav"></div><div class="tp-sidebar"></div><div class="tp-chat"></div></div>
+                                <span data-i18n="settings.appearance.dark">Dark</span>
+                            </div>
+                            <div class="theme-card" data-theme="system">
+                                <div class="theme-preview theme-preview-system"><div class="tp-nav"></div><div class="tp-sidebar"></div><div class="tp-chat"></div></div>
+                                <span data-i18n="settings.appearance.system">System</span>
+                            </div>
+                        </div>
+                        <!-- «Цвет исходящих» (фаза 7c): кружки рисует settings.js -->
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.appearance.bubble_color">Outgoing colour</div>
+                            <div class="st-inline"><div class="bubble-swatches" id="bubble-swatches"></div><span class="st-desc" data-i18n="settings.appearance.bubble_color_desc">Can be set per chat.</span></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="globe" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.language.title">Language</div><div class="st-desc" data-i18n="settings.language.desc">Select interface language.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.language.title">Language</div>
+                            <select id="language-select" class="settings-input st-w240">
+                                <option value="en">English</option>
+                                <option value="ru">Русский</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="bell" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.notifications.title">Notifications</div><div class="st-desc" data-i18n="settings.notifications.desc">How to show new messages, calls and requests when the window is not in front.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.notifications.show">Show</div>
+                            <select id="notify-mode-select" class="settings-input st-w360">
+                                <option value="custom" data-i18n="settings.notifications.custom">Vox popups (bottom-right)</option>
+                                <option value="system" data-i18n="settings.notifications.system">System notifications</option>
+                                <option value="off" data-i18n="settings.notifications.off">Off</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- «Звуки событий» (фаза 7c, sounds.js) -->
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="volume-2" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.sounds.title">Event sounds</div><div class="st-desc" data-i18n="settings.sounds.desc">One volume for all sounds; each event can be turned off.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.sounds.volume">Volume</div>
+                            <div class="gain-row">
+                                <input type="range" id="sound-volume" min="0" max="100" value="60" class="gain-slider">
+                                <span id="sound-volume-label" class="st-val">60%</span>
+                            </div>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.sounds.events">Events</div>
+                            <div class="st-chips">
+                                <label class="st-chip"><span data-i18n="settings.sounds.message">Message</span><input type="checkbox" class="toggle-switch" data-sound-event="message"></label>
+                                <label class="st-chip"><span data-i18n="settings.sounds.call">Call</span><input type="checkbox" class="toggle-switch" data-sound-event="call"></label>
+                                <label class="st-chip"><span data-i18n="settings.sounds.voice">Joining a voice channel</span><input type="checkbox" class="toggle-switch" data-sound-event="voice"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Звук ===== -->
+                <div id="settings-tab-sound" class="settings-tab st-two-col" style="display:none;">
+                    <div class="st-col">
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="mic" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.mic.title">Microphone</div><div class="st-desc" data-i18n="settings.mic.desc">Select input device and adjust gain.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.mic.input">Input device</div>
+                            <select id="mic-select" class="settings-select"></select>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.mic.gain">Gain</div>
+                            <div class="gain-row">
+                                <input type="range" id="mic-gain" min="0" max="300" value="100" class="gain-slider">
+                                <span id="mic-gain-label" class="st-val">100%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="audio-lines" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.ns.title">Voice processing</div><div class="st-desc" id="ns-desc" data-i18n="settings.ns.desc">Filter out keyboard, mouse and background hum from your microphone.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.ns.label">Noise suppression</div>
+                            <select id="ns-select" class="settings-select">
+                                <option value="0" data-i18n="settings.ns.off">Off</option>
+                                <option value="1" data-i18n="settings.ns.light">Light (HPF + LPF)</option>
+                                <option value="2" data-i18n="settings.ns.rnn">RNNoise (neural)</option>
+                                <option value="3" data-i18n="settings.ns.deep">DeepFilterNet</option>
+                            </select>
+                        </div>
+                        <div class="st-row" id="dfn-strength-field" style="display:none;">
+                            <div class="st-lbl" data-i18n="settings.ns.strength">Strength</div>
+                            <div class="gain-row">
+                                <input type="range" id="dfn-strength" min="10" max="100" value="100" step="1" class="gain-slider">
+                                <span id="dfn-strength-label" class="st-val">100%</span>
+                            </div>
+                        </div>
+
+                        <!-- Нейронный фильтр — свёрнутый блок (прогрессивное раскрытие).
+                             Скрыт целиком, если бинарь без nx_onnx (GetNeuralAvailable). -->
+                        <div class="st-collapse" id="neural-field" style="display:none;">
+                            <button type="button" class="st-collapse-head" data-collapse="neural-body">
+                                <i data-lucide="chevron-right" class="icon-14 st-collapse-chev"></i>
+                                <span class="st-collapse-title" data-i18n="settings.neural.mode">Neural filter</span>
+                                <span class="st-desc" data-i18n="settings.neural.mode_desc">Works on top of the selected noise suppression level.</span>
+                            </button>
+                            <div class="st-collapse-body" id="neural-body" hidden>
+                                <div class="st-row">
+                                    <div class="st-lbl" data-i18n="settings.neural.filter">Filter</div>
+                                    <div class="settings-segmented" id="neural-mode-segmented">
+                                        <label><input type="radio" name="neural-mode" value="off" checked><span data-i18n="settings.neural.off">Off</span></label>
+                                        <label><input type="radio" name="neural-mode" value="fe"><span>FastEnhancer</span></label>
+                                        <label><input type="radio" name="neural-mode" value="gtcrn"><span>GTCRN</span></label>
+                                    </div>
+                                </div>
+                                <div id="fe-options" style="display:none;">
+                                    <div class="st-row">
+                                        <div class="st-lbl" data-i18n="settings.fe.size">FastEnhancer size</div>
+                                        <div class="settings-segmented" id="fe-size-segmented">
+                                            <label><input type="radio" name="fe-size" value="t"><span>Tiny</span></label>
+                                            <label><input type="radio" name="fe-size" value="b" checked><span>Base</span></label>
+                                            <label><input type="radio" name="fe-size" value="s"><span>Small</span></label>
+                                            <label><input type="radio" name="fe-size" value="m"><span>Medium</span></label>
+                                            <label><input type="radio" name="fe-size" value="l"><span>Large</span></label>
+                                        </div>
+                                    </div>
+                                    <div class="st-row">
+                                        <div class="st-lbl" data-i18n="settings.fe.mix">Strength</div>
+                                        <div class="gain-row">
+                                            <input type="range" id="fe-mix" min="0" max="100" value="100" step="1" class="gain-slider">
+                                            <span id="fe-mix-label" class="st-val">100%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="gtcrn-options" style="display:none;">
+                                    <div class="st-row">
+                                        <div class="st-lbl" data-i18n="settings.gtcrn.variant">GTCRN variant</div>
+                                        <div class="settings-segmented" id="gtcrn-variant-segmented">
+                                            <label><input type="radio" name="gtcrn-variant" value="dns3" checked><span>DNS3</span></label>
+                                            <label><input type="radio" name="gtcrn-variant" value="simple"><span>Simple</span></label>
+                                        </div>
+                                    </div>
+                                    <div class="st-row">
+                                        <div class="st-lbl" data-i18n="settings.gtcrn.mix">Strength</div>
+                                        <div class="gain-row">
+                                            <input type="range" id="gtcrn-mix" min="0" max="100" value="100" step="1" class="gain-slider">
+                                            <span id="gtcrn-mix-label" class="st-val">100%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="volume-2" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.speaker.title">Speakers</div><div class="st-desc" data-i18n="settings.speaker.desc">Select output device.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.speaker.output">Output device</div>
+                            <select id="speaker-select" class="settings-select"></select>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.voice.master_volume">Voice volume</div>
+                            <div class="gain-row">
+                                <input type="range" id="voice-master-volume" min="0" max="140" value="100" class="gain-slider">
+                                <span id="voice-master-volume-label" class="st-val">100%</span>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+
+                    <div class="st-col st-col-side">
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="activity" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.mic.test_label">Microphone check</div><div class="st-desc" data-i18n="settings.mic.test_desc">Speak and watch the level.</div></div></div>
+                        <div class="vu-meter"><div class="vu-meter-fill" id="vu-meter-fill"></div></div>
+                        <!-- «Слушать себя» (фаза 7c): не сохраняется, отсюда st-manual -->
+                        <div class="settings-toggle-row st-monitor-row st-manual">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.mic.monitor">Listen to yourself</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.mic.monitor_desc">Your voice after noise suppression plays back in your headphones.</span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="mic-monitor-toggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <button id="mic-test-btn" class="settings-save-btn st-btn-block" data-i18n="settings.mic.test">Test microphone</button>
+                        <div class="st-reset-row">
+                            <button type="button" id="audio-reset-btn" class="settings-save-btn st-btn-sec"><i data-lucide="rotate-ccw" class="icon-14"></i><span data-i18n="settings.audio.reset">Reset audio settings</span></button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- ===== Сеть ===== -->
+                <div id="settings-tab-network" class="settings-tab" style="display:none;">
+                    <div class="settings-section st-status-strip" id="net-status">
+                        <div class="st-kv"><span class="st-dot" id="net-status-signal-dot"></span><span data-i18n="settings.network.signal">Signal server</span><b id="net-status-signal">—</b></div>
+                        <div class="st-kv"><span data-i18n="settings.network.peers_online">Peers online</span><b id="net-status-peers">0</b></div>
+                        <div class="st-kv"><span>TURN</span><b id="net-status-turn">—</b></div>
+                        <div class="st-kv"><span data-i18n="settings.network.node_id">Node ID</span><span class="mono st-mono" id="net-status-nodeid">—</span><button id="net-status-nodeid-copy" class="profile-icon-btn" type="button" data-i18n-title="settings.network.copy_id" title="Copy"><i data-lucide="copy" class="icon-14"></i></button></div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="server" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.signal.title">Signaling servers</div><div class="st-desc" data-i18n="settings.signal.desc">Servers discovered via DHT that help peers find each other.</div></div></div>
+                        <table id="signal-servers-table" class="settings-table">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="settings.signal.status">Status</th>
+                                    <th data-i18n="settings.signal.id">ID</th>
+                                    <th data-i18n="settings.signal.address">Address</th>
+                                    <th data-i18n="settings.signal.pubkey">Pubkey</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="signal-servers-body">
+                                <tr><td colspan="5" class="table-empty" data-i18n="settings.signal.empty">No servers found</td></tr>
+                            </tbody>
+                        </table>
+                        <div class="settings-row st-w-full">
+                            <input type="text" id="add-signal-input" class="settings-input mono" placeholder="host:port" data-i18n-placeholder="settings.signal.placeholder">
+                            <input type="text" id="add-signal-pubkey" class="settings-input mono" placeholder="server pubkey (hex, 64 chars)" data-i18n-placeholder="settings.signal.pubkey_placeholder" maxlength="64">
+                            <button id="add-signal-btn" class="settings-save-btn st-btn-sec" data-i18n="settings.signal.add">Add</button>
+                            <button id="reconnect-signal-btn" class="settings-save-btn st-btn-sec" data-i18n="settings.signal.reconnect">Reconnect</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="shield" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.turn.title">TURN server</div><div class="st-desc" data-i18n="settings.turn.desc">Relay server for NAT traversal. Required when direct P2P is not possible.</div></div></div>
+                        <p id="turn-source-info" class="settings-info-box" style="display:none;"></p>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.turn.address">Address</div>
+                            <input type="text" id="turn-url" class="settings-input mono st-w360" placeholder="turn:host:port" autocomplete="off">
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.turn.credentials">Login / password</div>
+                            <div class="st-inline st-w360">
+                                <input type="text" id="turn-username" class="settings-input" placeholder="Username" autocomplete="off">
+                                <input type="password" id="turn-credential" class="settings-input" placeholder="Credential" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl"></div>
+                            <div class="st-inline">
+                                <button id="turn-save-btn" class="settings-save-btn" data-i18n="settings.turn.save">Save</button>
+                                <button id="turn-reset-btn" class="settings-save-btn st-btn-sec" style="display:none;" data-i18n="settings.turn.reset">Reset to server</button>
+                                <span id="turn-save-status" class="settings-desc" style="display:none;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="link" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.connconfig.import_title">Direct connection</div><div class="st-desc" data-i18n="settings.connconfig.import_desc">Paste a vox:// URI from another user to connect directly.</div></div></div>
+                        <div class="settings-row st-w-full">
+                            <input type="text" id="conn-config-input" class="settings-input mono" placeholder="vox://..." data-i18n-placeholder="settings.connconfig.import_placeholder" autocomplete="off">
+                            <button id="conn-config-import-btn" class="settings-save-btn" data-i18n="settings.connconfig.import_btn">Connect</button>
+                        </div>
+                        <p id="conn-config-status" class="settings-desc" style="display:none;"></p>
+                    </div>
+                </div>
+
+                <!-- ===== Дополнительно ===== -->
+                <div id="settings-tab-advanced" class="settings-tab" style="display:none;">
+                    <div class="settings-info-box warn"><i data-lucide="info" class="icon-14"></i> <span data-i18n="settings.advanced.warn">Engineering parameters. Defaults are fine for most users.</span></div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="server" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.sfu.title">SFU (server forwarding)</div><div class="st-desc" data-i18n="settings.sfu.desc">Use server relay for groups with many voice participants. Reduces client network load.</div></div></div>
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.sfu.enable">Enable SFU for large groups</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.sfu.enable_desc">Automatically use server relay when participant count exceeds threshold</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="sfu-toggle"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div id="sfu-threshold-field" style="display:none;">
+                            <div class="st-row">
+                                <div class="st-lbl" data-i18n="settings.sfu.threshold">Participant threshold</div>
+                                <input type="number" id="sfu-threshold" min="2" max="50" value="4" class="settings-input st-w80">
+                            </div>
+                        </div>
+                        <div id="sfu-force-field" style="display:none;">
+                            <div class="settings-toggle-row">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="settings.sfu.force">Force SFU (testing)</span>
+                                    <span class="settings-toggle-desc" data-i18n="settings.sfu.force_desc">Always use SFU regardless of participant count</span>
+                                </div>
+                                <label class="toggle-switch"><input type="checkbox" id="sfu-force"><span class="toggle-slider"></span></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="audio-lines" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.opus.title">Voice bandwidth</div><div class="st-desc" data-i18n="settings.opus.desc">Compare voice traffic modes: off (full) → DTX → VAD. Gate outgoing frames to save bandwidth on silence.</div></div></div>
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.opus.dtx_enable">Enable Opus DTX</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.opus.dtx_desc">Skip sending voice frames during silence. Applies on the fly — toggling during a call works without rejoin.</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="opus-dtx-toggle"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.vad.enable">Voice Activity Detection (Silero)</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.vad.enable_desc">Skip sending frames when no speech detected. Pre-roll 100ms + hangover 400ms prevent cutting word starts/ends.</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="vad-toggle"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div id="vad-threshold-field" style="display:none;">
+                            <div class="st-row">
+                                <div class="st-lbl" data-i18n="settings.vad.threshold">Speech threshold</div>
+                                <div class="gain-row">
+                                    <input type="range" id="vad-threshold" min="10" max="70" step="1" value="35" class="gain-slider">
+                                    <span id="vad-threshold-label" class="st-val">35%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.opus.bitrate">Current bitrate</div>
+                            <div id="opus-bitrate-readout" class="settings-desc mono" data-i18n="settings.opus.bitrate_idle">Bitrate: — (join a voice channel to measure)</div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="users" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.group_relay.title">Group text relay</div><div class="st-desc" data-i18n="settings.group_relay.desc">Send group text messages through the signal server instead of P2P mesh. Useful for large groups or testing.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.group_relay.threshold">Member threshold</div>
+                            <input type="number" id="group-relay-threshold" min="2" max="500" value="50" class="settings-input st-w80">
+                        </div>
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.group_relay.force">Force group relay (testing)</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.group_relay.force_desc">Always use server relay for every group regardless of size</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="group-relay-force"><span class="toggle-slider"></span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Meshtastic ===== -->
+                <div id="settings-tab-meshtastic" class="settings-tab" style="display:none;">
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="radio-tower" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.mesh.title">Meshtastic (LoRa)</div><div class="st-desc" data-i18n="settings.mesh.desc">Optional LoRa transport via a Meshtastic radio for off-grid messaging.</div></div></div>
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.mesh.enable">Enable Meshtastic</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.mesh.enable_desc">Open the radio over the selected serial port and start tracking mesh nodes.</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="mesh-toggle"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="st-kv-box">
+                            <p id="mesh-status-line" class="settings-desc" data-i18n="settings.mesh.status_disabled">Disabled</p>
+                            <p id="mesh-device-line" class="settings-desc mono" style="display:none;"></p>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="usb" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.mesh.device_card">Device</div><div class="st-desc" data-i18n="settings.mesh.device_card_desc">How Vox talks to the radio.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.mesh.transport_label">Transport</div>
+                            <div class="settings-segmented">
+                                <label><input type="radio" name="mesh-transport" value="serial" checked><span data-i18n="settings.mesh.transport_usb">USB</span></label>
+                                <label><input type="radio" name="mesh-transport" value="tcp"><span data-i18n="settings.mesh.transport_wifi">WiFi</span></label>
+                            </div>
+                        </div>
+                        <div class="st-row" id="mesh-transport-serial">
+                            <div class="st-lbl" data-i18n="settings.mesh.port">Serial port</div>
+                            <div class="st-inline st-w360">
+                                <select id="mesh-port-select" class="settings-input" style="flex:1;"></select>
+                                <button id="mesh-rescan-btn" class="profile-icon-btn st-icon-36" data-i18n-title="settings.mesh.rescan_title" title="Rescan ports"><i data-lucide="refresh-cw" class="icon-16"></i></button>
+                                <p id="mesh-port-empty" class="settings-desc" data-i18n="settings.mesh.no_ports" style="display:none;">No serial ports found.</p>
+                            </div>
+                        </div>
+                        <div class="st-row" id="mesh-transport-tcp" style="display:none;">
+                            <div class="st-lbl" data-i18n="settings.mesh.wifi_host_label">Device IP</div>
+                            <div class="st-inline st-w360 st-col-inline">
+                                <input type="text" id="mesh-wifi-host" class="settings-input mono" placeholder="192.168.1.42" autocomplete="off" spellcheck="false">
+                                <p class="settings-desc" data-i18n="settings.mesh.wifi_host_hint">Device must be on WiFi. IP is shown in WiFi-info after a successful USB connection.</p>
+                            </div>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.mesh.portnum">PortNum for Vox</div>
+                            <div class="st-inline">
+                                <input type="number" id="mesh-portnum" class="settings-input mono st-w80" min="256" max="511" value="256">
+                                <span class="settings-desc" data-i18n="settings.mesh.portnum_desc">Private app port in the 256–511 range.</span>
+                            </div>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl"></div>
+                            <div class="st-inline">
+                                <button id="mesh-test-btn" class="settings-save-btn st-btn-sec" data-i18n="settings.mesh.test">Test connection</button>
+                                <span id="mesh-test-status" class="settings-desc" style="display:none;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section st-collapse" id="mesh-wifi-section" style="display:none;">
+                        <button type="button" class="st-collapse-head st-card-head" data-collapse="mesh-wifi-body">
+                            <div class="st-card-ico"><i data-lucide="wifi" class="icon-18"></i></div>
+                            <div><div class="st-h3" data-i18n="settings.mesh.wifi.title">WiFi on device</div><div class="st-desc" id="mesh-wifi-info-line"></div></div>
+                            <i data-lucide="chevron-right" class="icon-16 st-collapse-chev"></i>
+                        </button>
+                        <div class="st-collapse-body" id="mesh-wifi-body" hidden>
+                            <p class="settings-desc" data-i18n="settings.mesh.wifi.hint">Configure the radio's WiFi or disable it. The device will reboot after applying. Current SSID/password are not shown for security.</p>
+                            <div id="mesh-wifi-info" class="settings-info-box" style="display:none;"></div>
+                            <div class="settings-toggle-row">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="settings.mesh.wifi.enabled_label">WiFi enabled</span>
+                                    <span class="settings-toggle-desc" data-i18n="settings.mesh.wifi.enabled_desc">Disable to keep the device on COM/BT only.</span>
+                                </div>
+                                <label class="toggle-switch"><input type="checkbox" id="mesh-wifi-enabled"><span class="toggle-slider"></span></label>
+                            </div>
+                            <div id="mesh-wifi-creds">
+                                <div class="st-row">
+                                    <div class="st-lbl" data-i18n="settings.mesh.wifi.saved_label">Saved networks</div>
+                                    <div class="st-inline st-w360">
+                                        <select id="mesh-wifi-saved" class="settings-input" style="flex:1;">
+                                            <option value="" data-i18n="settings.mesh.wifi.saved_new">— new network —</option>
+                                        </select>
+                                        <button id="mesh-wifi-forget" class="profile-icon-btn st-icon-36" type="button" data-i18n-title="settings.mesh.wifi.forget" title="Forget this network" disabled><i data-lucide="trash-2" class="icon-16"></i></button>
+                                    </div>
+                                </div>
+                                <div class="st-row">
+                                    <div class="st-lbl" data-i18n="settings.mesh.wifi.ssid_label">SSID</div>
+                                    <input type="text" id="mesh-wifi-ssid" class="settings-input st-w360" maxlength="32" autocomplete="off" spellcheck="false">
+                                </div>
+                                <div class="st-row">
+                                    <div class="st-lbl" data-i18n="settings.mesh.wifi.psk_label">Password</div>
+                                    <div class="password-wrap settings-input st-w360">
+                                        <input type="password" id="mesh-wifi-psk" minlength="8" maxlength="63" autocomplete="new-password" spellcheck="false">
+                                        <button type="button" class="password-toggle" data-target="mesh-wifi-psk" data-i18n-title="settings.mesh.wifi.psk_show" title="Показать/скрыть"><i data-lucide="eye" class="icon-18"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="st-row">
+                                <div class="st-lbl"></div>
+                                <div class="st-inline"><button id="mesh-wifi-apply" class="settings-save-btn" data-i18n="settings.mesh.wifi.apply" disabled>Apply WiFi</button></div>
+                            </div>
+                            <div id="mesh-wifi-status" class="settings-info-box error" style="display:none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section st-collapse" id="mesh-bt-section" style="display:none;">
+                        <button type="button" class="st-collapse-head st-card-head" data-collapse="mesh-bt-body">
+                            <div class="st-card-ico"><i data-lucide="bluetooth" class="icon-18"></i></div>
+                            <div><div class="st-h3" data-i18n="settings.mesh.bt.title">Bluetooth on device</div><div class="st-desc" id="mesh-bt-info-line"></div></div>
+                            <i data-lucide="chevron-right" class="icon-16 st-collapse-chev"></i>
+                        </button>
+                        <div class="st-collapse-body" id="mesh-bt-body" hidden>
+                            <p class="settings-desc" data-i18n="settings.mesh.bt.hint">Configure the radio's Bluetooth for phone pairing. The device will reboot after applying.</p>
+                            <p class="settings-desc" data-i18n="settings.mesh.bt.note_auto_wifi_off">When Bluetooth is turned on, WiFi will be disabled automatically (ESP32 shares one radio between them).</p>
+                            <div id="mesh-bt-info" class="settings-info-box" style="display:none;"></div>
+                            <div class="settings-toggle-row">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="settings.mesh.bt.enabled_label">Bluetooth enabled</span>
+                                    <span class="settings-toggle-desc" data-i18n="settings.mesh.bt.enabled_desc">Turn off to keep the device on COM/WiFi only.</span>
+                                </div>
+                                <label class="toggle-switch"><input type="checkbox" id="mesh-bt-enabled"><span class="toggle-slider"></span></label>
+                            </div>
+                            <div id="mesh-bt-creds">
+                                <div class="st-row">
+                                    <div class="st-lbl" data-i18n="settings.mesh.bt.mode_label">Pairing mode</div>
+                                    <select id="mesh-bt-mode" class="settings-input st-w360">
+                                        <option value="random" data-i18n="settings.mesh.bt.mode_random">Random PIN (shown on display)</option>
+                                        <option value="fixed" data-i18n="settings.mesh.bt.mode_fixed">Fixed PIN</option>
+                                        <option value="no_pin" data-i18n="settings.mesh.bt.mode_no_pin">No PIN (insecure)</option>
+                                    </select>
+                                </div>
+                                <div class="st-row" id="mesh-bt-pin-row" style="display:none;">
+                                    <div class="st-lbl" data-i18n="settings.mesh.bt.pin_label">Fixed PIN</div>
+                                    <input type="text" id="mesh-bt-pin" class="settings-input mono st-w240" inputmode="numeric" maxlength="6" pattern="[0-9]*" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="st-row">
+                                <div class="st-lbl"></div>
+                                <div class="st-inline"><button id="mesh-bt-apply" class="settings-save-btn" data-i18n="settings.mesh.bt.apply" disabled>Apply Bluetooth</button></div>
+                            </div>
+                            <div id="mesh-bt-status" class="settings-info-box error" style="display:none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section st-collapse" id="mesh-device-section" style="display:none;">
+                        <button type="button" class="st-collapse-head st-card-head" data-collapse="mesh-device-body">
+                            <div class="st-card-ico"><i data-lucide="monitor" class="icon-18"></i></div>
+                            <div><div class="st-h3" data-i18n="settings.mesh.device.title">Screen and power</div><div class="st-desc" data-i18n="settings.mesh.device.hint">LED and OLED behaviour. The device reboots after applying.</div></div>
+                            <i data-lucide="chevron-right" class="icon-16 st-collapse-chev"></i>
+                        </button>
+                        <div class="st-collapse-body" id="mesh-device-body" hidden>
+                            <div class="settings-toggle-row">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="settings.mesh.device.led_label">LED heartbeat</span>
+                                    <span class="settings-toggle-desc" data-i18n="settings.mesh.device.led_desc">Blinking activity indicator. Turn off for a dark relay.</span>
+                                </div>
+                                <label class="toggle-switch"><input type="checkbox" id="mesh-device-led"><span class="toggle-slider"></span></label>
+                            </div>
+                            <div class="st-row">
+                                <div class="st-lbl" data-i18n="settings.mesh.device.screen_label">Screen turns off after</div>
+                                <select id="mesh-device-screen-secs" class="settings-input st-w240">
+                                    <option value="0" data-i18n="settings.mesh.device.screen_always">Always on</option>
+                                    <option value="30" data-i18n="settings.mesh.device.screen_30s">30 seconds</option>
+                                    <option value="60" data-i18n="settings.mesh.device.screen_1m">1 minute</option>
+                                    <option value="120" data-i18n="settings.mesh.device.screen_2m">2 minutes</option>
+                                    <option value="300" data-i18n="settings.mesh.device.screen_5m">5 minutes</option>
+                                    <option value="600" data-i18n="settings.mesh.device.screen_10m">10 minutes</option>
+                                    <option value="1800" data-i18n="settings.mesh.device.screen_30m">30 minutes</option>
+                                </select>
+                            </div>
+                            <div class="settings-toggle-row">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="settings.mesh.device.wake_label">Wake on touch</span>
+                                    <span class="settings-toggle-desc" data-i18n="settings.mesh.device.wake_desc">Screen wakes on tap or shake.</span>
+                                </div>
+                                <label class="toggle-switch"><input type="checkbox" id="mesh-device-wake"><span class="toggle-slider"></span></label>
+                            </div>
+                            <div class="st-row">
+                                <div class="st-lbl"></div>
+                                <div class="st-inline"><button id="mesh-device-apply" class="settings-save-btn" data-i18n="settings.mesh.device.apply" disabled>Apply device settings</button></div>
+                            </div>
+                            <div id="mesh-device-status" class="settings-desc" style="display:none;color:var(--red);"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section" id="mesh-network-section" style="display:none;">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="radar" class="icon-18"></i></div><div><div class="st-h3" data-i18n="network.mesh.title">Nodes on air</div><div class="st-desc"><span data-i18n="network.mesh.local_node">Local node</span> <span class="mono" id="mesh-net-local-node">—</span> · <span data-i18n="network.mesh.nodes_seen">Nodes seen</span> <b id="mesh-net-nodes-count">0</b></div></div></div>
+                        <ul id="mesh-nodes-list" class="mesh-nodes-list"></ul>
+                        <p id="mesh-nodes-empty" class="settings-desc" data-i18n="network.mesh.no_nodes" style="display:none;">No mesh nodes seen yet. Waiting for traffic…</p>
+                    </div>
+                </div>
+
+                <!-- ===== О программе ===== -->
+                <div id="settings-tab-about" class="settings-tab" style="display:none;">
+                    <div class="settings-section st-about-id">
+                        <div class="st-logo">VOX</div>
+                        <div>
+                            <div class="st-about-name">Vox</div>
+                            <div class="st-desc mono"><span id="settings-update-current">—</span> · <span id="about-platform"></span></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="download" class="icon-18"></i></div><div><div class="st-h3" data-i18n="update.available">Updates</div><div class="st-desc"><span data-i18n="update.latest_version">Latest version</span>: <b id="settings-update-latest">—</b></div></div></div>
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="update.auto_check">Check automatically on start</span>
+                                <span class="settings-toggle-desc" data-i18n="update.auto_check_desc">Check for updates every time the app starts</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="settings-update-auto-check" checked><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="st-inline">
+                            <button id="settings-update-check" class="settings-save-btn st-btn-sec" data-i18n="update.button.check">Check for updates</button>
+                            <button id="settings-update-rollback" class="settings-save-btn st-btn-sec" style="display:none;" data-i18n="update.button.rollback">Roll back</button>
+                        </div>
+                        <div id="settings-update-status" class="settings-desc" style="display:none;"></div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="file-text" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.diag.title">Diagnostics</div><div class="st-desc" data-i18n="settings.diag.desc">For bug reports.</div></div></div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.network.node_id">Node ID</div>
+                            <div class="st-inline"><span class="mono st-mono" id="about-node-id">—</span><button id="about-node-id-copy" class="profile-icon-btn" type="button" data-i18n-title="settings.network.copy_id" title="Copy"><i data-lucide="copy" class="icon-14"></i></button></div>
+                        </div>
+                        <!-- Логи (фаза 7d, app_logs.go) -->
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.diag.logs">Logs</div>
+                            <div class="st-inline">
+                                <button id="logs-open-btn" type="button" class="settings-save-btn st-btn-sec st-btn-icon"><i data-lucide="folder" class="icon-16"></i><span data-i18n="settings.diag.open_folder">Open logs folder</span></button>
+                                <button id="logs-export-btn" type="button" class="settings-save-btn st-btn-sec st-btn-icon"><i data-lucide="download" class="icon-16"></i><span data-i18n="settings.diag.export">Export archive</span></button>
+                            </div>
+                        </div>
+                        <!-- Не сохраняется (до перезапуска) — st-manual -->
+                        <div class="settings-toggle-row st-manual">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.diag.verbose">Verbose logging</span>
+                                <span class="settings-toggle-desc" id="verbose-logging-desc" data-i18n="settings.diag.verbose_desc">More detail in the logs, until restart.</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="verbose-logging-toggle"><span class="toggle-slider"></span></label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="info" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.licenses.title">Licenses</div><div class="st-desc" data-i18n="settings.licenses.desc">Wails, pion/webrtc, Opus, DeepFilterNet, RNNoise, Silero VAD, FastEnhancer, GTCRN, ONNX Runtime, Lucide, SQLCipher, Meshtastic protobufs.</div></div></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+        </div><!-- /#app-screens -->
+    </div><!-- /#app-shell -->
+
+    <div id="context-menu" class="context-menu" style="display:none;"></div>
+
+    <script src="src/lucide.min.js"></script>
+    <script>lucide.createIcons();</script>
+    <script type="module" src="src/modules/main.js"></script>
+</body>
+</html>

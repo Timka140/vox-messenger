@@ -1,0 +1,85 @@
+/* ========== APP LAYOUT ========== */
+#app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-height: 0;
+}
+
+#app-screens {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+}
+
+#app-screens > #app,
+#app-screens > #settings-screen {
+    height: 100%;
+}
+
+#app {
+    display: flex;
+}
+
+/* ========== NAV STRIP ==========
+ * Макет Main/NavMap: 68px, всегда тёмный (#1B1E25 в обеих темах), подписи
+ * 10px под иконками 22px, пункт 60×52, активный — белый на --bg-nav-hover. */
+#nav-strip {
+    width: 68px;
+    background: #1B1E25;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.nav-item {
+    width: 60px;
+    height: 52px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: #999;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: inherit;
+    line-height: 1;
+    position: relative;
+    transition: background 0.15s, color 0.15s;
+}
+.nav-item svg { width: 22px; height: 22px; }
+.nav-item:hover { background: #2E323B; color: #ddd; }
+.nav-item.active { color: #fff; background: #2E323B; }
+
+.nav-spacer {
+    flex: 1;
+}
+
+/* --- Nav Badge: число (заявки в друзья, непрочитанное в эфире) --- */
+.nav-badge {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: #f04747;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.nav-badge[hidden] { display: none; }

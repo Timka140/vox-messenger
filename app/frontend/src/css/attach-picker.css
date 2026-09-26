@@ -1,0 +1,147 @@
+/* attach-picker.css — модалка получателя «Принять файлы?» (attach_approve.js)
+ * и мета-строка пузыря вложений. Модалка выбора при отправке удалена в фазе
+ * 3a: вложения показывает полоса над полем ввода (composer-attach.js). */
+
+/* ─── Approval modal (receiver) ─── */
+.attach-approve-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.attach-approve-subtitle {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.attach-approve-files {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.attach-approve-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.attach-approve-file > i,
+.attach-approve-file > svg {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.attach-approve-file-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.attach-approve-file-name {
+    font-size: 13px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.attach-approve-file-size {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.attach-approve-dedup {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.attach-approve-caption {
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+/* ─── Attachment bubble meta row ───
+ * Стандартный .bubble-meta в обычных message-bubble — absolute bottom-right
+ * (см. chat.css). Но у attachment-bubble последним может быть .attach-files
+ * с тёмным фоном — absolute meta заезжает поверх текста файлов.
+ *
+ * Чиним: переопределяем на in-flow (static) + flex row; download-кнопка
+ * слева, time+status справа. Так meta получает собственную строку снизу,
+ * не перекрывает файлы, и не пустая если у нас нет download-кнопки. */
+.attachment-bubble .bubble-meta {
+    position: static;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 0;
+    line-height: 1;
+    /* Прижимаем к карточке/подписи: gap контейнера 6px минус 2 — как у
+       текстовых пузырей, где время сидит сразу под последней строкой. */
+    margin-top: -2px;
+}
+
+/* У пузыря с вложением padding-bottom 18px (chat.css, под absolute-время
+   текстовых сообщений) давал пустой «подвал» после строки времени. */
+.message-bubble.has-attachment {
+    padding-bottom: 5px;
+}
+
+/* После подписи время ещё ближе — подпись сама несёт line-height 1.35. */
+.attachment-bubble .attach-caption + .bubble-meta {
+    margin-top: -4px;
+}
+
+.attachment-bubble .bubble-meta.has-bulk-download {
+    justify-content: space-between;
+}
+
+/* ─── Кнопка «Скачать всё» в bubble ───
+   Icon-only, встраивается ПРЯМО в .bubble-meta (слева от времени), чтобы
+   не создавать отдельную строку и не раздвигать bubble вниз. */
+.attach-bulk-download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background var(--dur-fast), color var(--dur-fast);
+    opacity: 0.7;
+}
+
+.attach-bulk-download:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.attach-bulk-download:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* Inbound: мета слева от времени. Meta сам absolute bottom-right внутри
+   attachment-bubble, download-кнопка просто добавляет 24px ширины. */
+.bubble-meta.has-bulk-download {
+    gap: 6px;
+}

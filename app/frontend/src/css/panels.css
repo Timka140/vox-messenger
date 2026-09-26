@@ -1,0 +1,715 @@
+/* ========== INFO PANEL (inline right panel) ========== */
+#info-panel {
+    width: 0;
+    min-width: 0;
+    height: 100vh;
+    background: var(--bg-panel);
+    border-left: 1px solid transparent;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: width 0.2s ease, min-width 0.2s ease, border-color 0.2s ease;
+}
+
+#info-panel.open {
+    width: 320px;
+    min-width: 320px;
+    border-left-color: var(--border);
+}
+
+/* Шапка панели 44px, как у чата (макеты InfoDM / InfoGroup) */
+.info-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 44px;
+    padding: 0 8px 0 12px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.info-panel-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Info panel tabs */
+.info-tabs {
+    display: flex;
+    gap: 2px;
+}
+
+.info-tab {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.info-tab:hover {
+    background: var(--input-bg);
+}
+
+.info-tab.active {
+    background: var(--accent);
+    color: var(--accent-btn-text);
+}
+
+.info-tab-content {
+    display: none;
+}
+
+.info-tab-content.active {
+    display: block;
+}
+
+.toggle-switch {
+    width: 36px;
+    height: 20px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.toggle-switch:checked {
+    background: var(--green, #4caf50);
+}
+
+.toggle-switch::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+
+.toggle-switch:checked::before {
+    transform: translateX(16px);
+}
+
+/* Voice header button active state */
+#voice-join-btn { color: var(--green, #4caf50); }
+#voice-join-btn.active { color: var(--red); }
+#voice-join-btn .voice-count {
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+.info-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+
+.info-close:hover {
+    background: var(--input-bg);
+}
+
+.info-panel-body {
+    padding: 16px 12px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ========== ВКЛАДКА «ИНФО» (info-panel.js, макеты InfoDM / InfoGroup) ==========
+ * Профиль сверху → ряд из четырёх действий → строки-настройки → свёрнутые
+ * «Технические данные» → опасные действия прижаты к низу (.ip-spacer). */
+#info-tab-info.active { display: flex; flex-direction: column; min-height: 100%; }
+.ip-head { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.ip-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.ip-avatar.group { background: var(--input-bg); border: 1px solid var(--border); color: var(--accent); box-sizing: border-box; }
+.ip-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+.ip-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-tag { display: flex; align-items: center; gap: 6px; max-width: 100%; }
+.ip-tag .mono {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--input-bg);
+    padding: 3px 8px;
+    border-radius: 3px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ip-status { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.ip-status.online { color: var(--green); }
+.ip-sub { font-size: 12px; color: var(--text-secondary); }
+.ip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.ip-dot.off { background: transparent; border: 1.5px solid var(--text-muted); box-sizing: border-box; }
+.ip-icon-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.ip-icon-btn:hover { background: var(--input-bg); color: var(--text-primary); }
+
+.ip-acts { display: flex; gap: 6px; margin: 14px 0 4px; }
+.ip-act {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 2px;
+    border-radius: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.ip-act:hover { border-color: var(--accent); }
+.ip-act svg { color: var(--text-primary); }
+.ip-act span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-hr { height: 1px; background: var(--border); margin: 8px 0; flex-shrink: 0; }
+
+.ip-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 4px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    box-sizing: border-box;
+}
+button.ip-row { cursor: pointer; }
+button.ip-row:hover { background: var(--contact-hover); }
+button.ip-row.static { cursor: default; }
+button.ip-row.static:hover { background: transparent; }
+.ip-row > svg { color: var(--text-secondary); flex-shrink: 0; }
+.ip-row-label { flex-shrink: 0; }
+.ip-row-value { margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.ip-row-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-row.danger, .ip-row.danger > svg { color: var(--red); }
+.ip-row .profile-mesh-input { width: 96px; }
+
+/* Тумблер строки «Уведомления» — как .toggle в макете */
+.ip-toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--border); position: relative; flex-shrink: 0; transition: background 0.15s; }
+.ip-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left 0.15s; }
+.ip-toggle.on { background: var(--green); }
+.ip-toggle.on::after { left: 18px; }
+
+.ip-exp-body, .ip-tech-body { display: flex; flex-direction: column; padding: 0 4px 6px 30px; }
+.ip-exp-body[hidden], .ip-tech-body[hidden], .ip-more-members[hidden] { display: none; }
+.ip-sub-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 4px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+.ip-sub-row:hover { background: var(--contact-hover); }
+.ip-sub-row svg { color: var(--text-secondary); flex-shrink: 0; }
+.ip-calls .profile-call-row { gap: 8px; padding: 6px 0; font-size: 12px; }
+.ip-calls .profile-call-kind { width: auto; }
+.ip-tech-body { gap: 8px; }
+.ip-tech-row { display: flex; align-items: flex-start; gap: 6px; }
+.ip-tech-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ip-tech-label { font-size: 11px; color: var(--text-muted); }
+.ip-tech-value { font-size: 11px; color: var(--text-primary); word-break: break-all; }
+.ip-spacer { flex: 1; min-height: 12px; }
+
+/* Голосовой канал группы — одна строка, не вкладка */
+.ip-voice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(67, 181, 129, 0.08);
+    border: 1px solid rgba(67, 181, 129, 0.25);
+}
+.ip-voice > svg { color: var(--green); flex-shrink: 0; }
+.ip-voice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ip-voice-title { font-size: 13px; color: var(--text-primary); }
+.ip-voice-sub { font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-voice-stack { display: flex; flex-shrink: 0; }
+.ip-mini-av {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-panel);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ip-mini-av + .ip-mini-av { margin-left: -8px; }
+.ip-voice-btn {
+    height: 28px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 6px;
+    background: var(--green);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.ip-voice-btn.leave { background: var(--red); }
+
+.ip-sec {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 4px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.ip-sec-link {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: pointer;
+}
+.ip-members { display: flex; flex-direction: column; }
+.ip-mem { display: flex; align-items: center; gap: 10px; padding: 5px 4px; border-radius: 6px; cursor: context-menu; }
+.ip-mem:hover { background: var(--contact-hover); }
+.ip-mem-av {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.ip-mem.off .ip-mem-av { opacity: 0.6; }
+.ip-mem-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-primary); }
+.ip-mem-nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-mem-you { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+.ip-badge { font-size: 10px; color: var(--accent); background: rgba(163, 218, 197, 0.15); padding: 1px 6px; border-radius: 3px; flex-shrink: 0; }
+.ip-mem-voice { color: var(--green); flex-shrink: 0; }
+.ip-more-members {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 32px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.ip-more-members:hover { background: var(--contact-hover); }
+
+.info-panel-body h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.6px;
+    font-weight: 700;
+    margin-top: 16px;
+    margin-bottom: 8px;
+}
+
+#members-list {
+    list-style: none;
+}
+
+#members-list li {
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#members-list li::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+}
+
+/* --- Mesh nodes list (Meshtastic LoRa) --- */
+.mesh-nodes-list {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0 0;
+}
+
+.mesh-node-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+    display: grid;
+    grid-template-columns: 12px 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 8px;
+    row-gap: 2px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.mesh-node-item:last-child {
+    border-bottom: none;
+}
+.mesh-node-item.is-local {
+    background: var(--accent-soft, rgba(100,150,255,0.08));
+    padding-left: 6px;
+    padding-right: 6px;
+    border-radius: 4px;
+}
+
+.mesh-node-signal {
+    grid-row: 1 / span 2;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    flex-shrink: 0;
+}
+.mesh-node-signal[data-quality="strong"] { background: var(--green, #4caf50); }
+.mesh-node-signal[data-quality="ok"]     { background: var(--yellow, #e6a23c); }
+.mesh-node-signal[data-quality="weak"]   { background: var(--red, #d33); }
+.mesh-node-signal[data-quality="local"]  { background: var(--accent, #4da1cb); box-shadow: 0 0 0 2px var(--accent-soft, rgba(77,161,203,0.25)); }
+.mesh-node-signal[data-quality="stale"]  { background: var(--text-secondary); opacity: 0.4; }
+
+.mesh-node-name {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mesh-node-id {
+    font-family: monospace;
+    font-size: 11px;
+    opacity: 0.7;
+}
+.mesh-node-meta {
+    grid-column: 2 / 4;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 11px;
+}
+.mesh-node-meta span {
+    white-space: nowrap;
+}
+.mesh-node-rssi { font-family: monospace; }
+.mesh-node-snr  { font-family: monospace; }
+.mesh-node-via  { opacity: 0.7; }
+
+/* --- Mesh broadcast chat (LoRa plaintext) --- */
+.mesh-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+    background: var(--bg-elevated, rgba(255,255,255,0.02));
+}
+.mesh-chat-header > i {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+.mesh-chat-title {
+    flex: 1;
+    min-width: 0;
+}
+.mesh-chat-title h2 {
+    font-size: 15px;
+    margin: 0;
+    color: var(--text-primary);
+}
+.mesh-chat-subtitle {
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.8;
+}
+.mesh-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 16px;
+}
+.mesh-chat-msg {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    background: var(--bg-elevated, rgba(255,255,255,0.04));
+    font-size: 13px;
+    color: var(--text-primary);
+    word-wrap: break-word;
+}
+.mesh-chat-msg.outgoing {
+    background: var(--accent-soft, rgba(77,161,203,0.15));
+    margin-left: 40px;
+}
+.mesh-chat-msg-meta {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.mesh-chat-msg-name { font-weight: 500; color: var(--accent); }
+.mesh-chat-msg-id   { font-family: monospace; opacity: 0.6; }
+.mesh-chat-msg-sig  { font-family: monospace; opacity: 0.6; }
+.mesh-chat-msg-time { margin-left: auto; opacity: 0.6; }
+.mesh-chat-msg-text { white-space: pre-wrap; }
+
+.mesh-chat-input-area .input-row {
+    align-items: center;
+}
+/* Make our textarea match #message-input which is targeted by id only. */
+#mesh-chat-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--input-bg, rgba(255,255,255,0.05));
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    line-height: 1.4;
+    max-height: 120px;
+}
+#mesh-chat-input:focus {
+    border-color: var(--accent);
+}
+.mesh-chat-charcount {
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-align: right;
+    padding: 2px 8px 0;
+}
+.mesh-chat-charcount.over { color: var(--red, #d33); }
+
+/* Pseudo-contact item for mesh broadcast in contacts list */
+.contact-item.is-mesh .contact-avatar {
+    background: var(--accent) !important;
+    color: #fff;
+    position: relative;
+}
+/* Tiny corner-dot on mesh contact avatar showing signal quality. */
+.mesh-contact-signal {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-panel, #1a1a1a);
+    background: var(--text-secondary);
+}
+.mesh-contact-signal[data-quality="strong"] { background: var(--green, #4caf50); }
+.mesh-contact-signal[data-quality="ok"]     { background: var(--yellow, #e6a23c); }
+.mesh-contact-signal[data-quality="weak"]   { background: var(--red, #d33); }
+.mesh-contact-signal[data-quality="local"]  { background: var(--accent, #4da1cb); }
+.mesh-contact-signal[data-quality="stale"]  { background: var(--text-secondary); opacity: 0.4; }
+
+/* "Send via Mesh" button next to regular Send — distinct color so users
+   can tell at a glance which transport their message will use. */
+.send-mesh-btn {
+    background: var(--accent-soft, rgba(77,161,203,0.4)) !important;
+    color: var(--accent, #4da1cb) !important;
+}
+.send-mesh-btn:hover {
+    background: var(--accent, #4da1cb) !important;
+    color: #fff !important;
+}
+
+/* --- Settings tag display --- */
+.settings-tag-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.settings-tag-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.settings-tag-value {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* --- Settings Toggle --- */
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.settings-toggle-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.settings-toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.settings-toggle-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+label.toggle-switch {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+label.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--border);
+    border-radius: 22px;
+    transition: background 0.2s;
+}
+
+.toggle-slider::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+label.toggle-switch input:checked + .toggle-slider {
+    background: var(--accent);
+}
+
+label.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(18px);
+}
+
+/* ========== INFO PANEL В РЕЖИМЕ СЦЕНЫ (stage.js) ==========
+ * Пока показана сцена звонка, панель шире (360px) и держит вкладки
+ * Чат | Участники | Медиа: в #info-tab-chat физически перенесены #messages и
+ * #input-area, поэтому body без паддинга и без своего скролла — скроллят
+ * сами вкладки. */
+#info-panel.open.stage { width: 360px; min-width: 360px; }
+#info-panel.stage .info-panel-body {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+#info-tab-chat.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#info-tab-participants.active { display: block; flex: 1; min-height: 0; overflow-y: auto; padding: 6px 8px; }
+#info-panel.stage #info-tab-media.active { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; }
+#info-panel.stage .messages { padding: 12px; }
+#info-panel.stage .input-area { padding: 8px 12px 12px; }
+.info-tab-count { opacity: 0.7; }
