@@ -24,6 +24,8 @@ const VPS2SignalPubkey = "527534742f96d8b8f76930edc155956533f66c71558f8e40498fd3
 // KnownSignalServers — прибитый к версии бинаря список проверенных серверов
 // (узлы кластера, docs/cluster-contract.md §6.1). Порядок не важен — узел
 // выбирается по /healthz. Остальные узлы клиент узнаёт из server_list.
+// Адреса — имена узлов (build/nodes/*.conf NODE_HOST): узел переезжает на
+// другой IP правкой DNS, без релиза клиента.
 // Обновление: при компрометации ключа deploy-signal.sh регенерит .key и
 // автоматически обновит VPSSignalPubkey; auto-update раскатает новый клиент.
 var KnownSignalServers = []KnownSignalServer{

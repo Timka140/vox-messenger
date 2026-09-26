@@ -262,6 +262,31 @@ func (s *NetworkService) seedKnownServers() {
 				slog.String("addr", k.Address), slog.String("error", err.Error()))
 		}
 	}
+	s.dropRetiredBuiltinServers()
+}
+
+// dropRetiredBuiltinServers удаляет встроенные записи, которых больше нет в
+// KnownSignalServers: узел сменил адрес (IP → имя), и без этого у обновившихся
+// клиентов остаётся дубль того же сервера под старым адресом. Ручные и
+// cluster-записи не трогает.
+func (s *NetworkService) dropRetiredBuiltinServers() {
+	if len(network.KnownSignalServers) == 0 {
+		return
+	}
+	args := make([]any, 0, len(network.KnownSignalServers))
+	for _, k := range network.KnownSignalServers {
+		args = append(args, k.Address)
+	}
+	q := "DELETE FROM signal_servers WHERE source = 'builtin' AND address NOT IN (?" +
+		strings.Repeat(", ?", len(args)-1) + ")"
+	res, err := s.store.DB().Exec(q, args...)
+	if err != nil {
+		s.log.Warn("drop retired builtin signal servers failed", slog.String("error", err.Error()))
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		s.log.Info("retired builtin signal servers removed", slog.Int64("count", n))
+	}
 }
 
 // maxClusterNodes — предел узлов из одного server_list.

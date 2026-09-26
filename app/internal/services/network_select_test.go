@@ -64,10 +64,43 @@ func TestConnectOrderDevListKeepsOrder(t *testing.T) {
 	}
 }
 
+func TestSeedDropsRetiredBuiltin(t *testing.T) {
+	n, store, _ := newBlockTestNetwork(t)
+	db := store.DB()
+	// Старый клиент: встроенный узел под прежним адресом, плюс ручная и cluster-записи.
+	if _, err := db.Exec(`INSERT INTO signal_servers (address, pubkey, source) VALUES
+		('198.51.100.7:9741', ?, 'builtin'),
+		('10.0.0.1:1', '', 'manual'),
+		('10.0.0.2:1', '', 'cluster')`, network.VPSSignalPubkey); err != nil {
+		t.Fatal(err)
+	}
+	n.seedKnownServers()
+
+	exists := func(addr string) bool {
+		var c int
+		_ = db.QueryRow("SELECT COUNT(*) FROM signal_servers WHERE address = ?", addr).Scan(&c)
+		return c > 0
+	}
+	if exists("198.51.100.7:9741") {
+		t.Fatal("встроенная запись со старым адресом должна удалиться")
+	}
+	for _, k := range network.KnownSignalServers {
+		if !exists(k.Address) {
+			t.Fatalf("текущий встроенный узел %s должен остаться", k.Address)
+		}
+	}
+	for _, keep := range []string{"10.0.0.1:1", "10.0.0.2:1"} {
+		if !exists(keep) {
+			t.Fatalf("%s (не builtin) не должен удаляться", keep)
+		}
+	}
+}
+
 func TestMergeClusterServers(t *testing.T) {
 	n, store, _ := newBlockTestNetwork(t)
 	db := store.DB()
 	n.seedKnownServers() // builtin: vps1, vps2
+	vps1, vps2 := network.KnownSignalServers[0].Address, network.KnownSignalServers[1].Address
 	key1, key2, key3 := strings.Repeat("1", 64), strings.Repeat("2", 64), strings.Repeat("3", 64)
 	if _, err := db.Exec(`INSERT INTO signal_servers (address, pubkey, source) VALUES
 		('10.0.0.1:1', '', 'manual'),
@@ -76,8 +109,8 @@ func TestMergeClusterServers(t *testing.T) {
 	}
 
 	err := n.mergeClusterServers([]network.ServerNode{
-		{Addr: "n1.northwindcdn.com:9741", Pubkey: network.VPSSignalPubkey},
-		{Addr: "n2.northwindcdn.com:9741", Pubkey: key3}, // ключ не совпадает с зашитым
+		{Addr: vps1, Pubkey: network.VPSSignalPubkey},
+		{Addr: vps2, Pubkey: key3}, // ключ не совпадает с зашитым
 		{Addr: "10.0.0.3:1", Pubkey: strings.ToUpper(key3)},
 		{Addr: "10.0.0.1:1", Pubkey: key1},
 		{Addr: "bad address", Pubkey: key1},
@@ -102,7 +135,7 @@ func TestMergeClusterServers(t *testing.T) {
 	if r, _ := get("10.0.0.1:1"); r.source != "manual" || r.pubkey != key1 {
 		t.Fatalf("ручная запись: источник сохраняется, пустой ключ заполняется: %+v", r)
 	}
-	if r, _ := get("n2.northwindcdn.com:9741"); r.source != "builtin" || r.pubkey != network.VPS2SignalPubkey {
+	if r, _ := get(vps2); r.source != "builtin" || r.pubkey != network.VPS2SignalPubkey {
 		t.Fatalf("зашитый ключ vps2 не должен перезаписываться: %+v", r)
 	}
 	for _, bad := range []string{"bad address", "10.0.0.4:1"} {
@@ -118,7 +151,7 @@ func TestMergeClusterServers(t *testing.T) {
 	if _, ok := get("10.0.0.3:1"); ok {
 		t.Fatal("cluster-запись, которой нет в новом списке, должна удалиться")
 	}
-	for _, keep := range []string{"10.0.0.1:1", "n1.northwindcdn.com:9741", "n2.northwindcdn.com:9741"} {
+	for _, keep := range []string{"10.0.0.1:1", vps1, vps2} {
 		if _, ok := get(keep); !ok {
 			t.Fatalf("%s не должен удаляться server_list", keep)
 		}

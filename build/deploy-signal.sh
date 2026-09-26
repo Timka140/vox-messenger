@@ -56,7 +56,7 @@ CLUSTER_ENV="$SECRETS_DIR/cluster.env"
 PEERS=""
 for conf in "$SCRIPT_DIR"/nodes/*.conf; do
     n="$(basename "$conf" .conf)"
-    entry="$(load_node "$n" && [ -n "$NODE_PUBKEY" ] && echo "ws://$NODE_IP:$NODE_WS_PORT/ws=$NODE_PUBKEY")" || entry=""
+    entry="$(load_node "$n" && [ -n "$NODE_PUBKEY" ] && echo "ws://$NODE_HOST:$NODE_WS_PORT/ws=$NODE_PUBKEY")" || entry=""
     if [ -z "$entry" ]; then
         echo "Warning: узел $n без NODE_PUBKEY — в cluster.env не попал"
         continue
@@ -65,7 +65,7 @@ for conf in "$SCRIPT_DIR"/nodes/*.conf; do
 done
 {
     echo "# Сгенерировано build/deploy-signal.sh — узлы кластера"
-    echo "CLUSTER_SELF_ADDR='ws://$NODE_IP:$NODE_WS_PORT/ws'"
+    echo "CLUSTER_SELF_ADDR='ws://$NODE_HOST:$NODE_WS_PORT/ws'"
     echo "CLUSTER_PEERS='$PEERS'"
     # SOFT_LIMIT=<n> ./build/deploy-signal.sh — временный лимит для проверки redirect.
     echo "CLUSTER_SOFT_LIMIT=${SOFT_LIMIT:-$NODE_SOFT_LIMIT}"

@@ -1468,7 +1468,7 @@ func (pm *PeerManager) createPeerConnection(remotePubKey string, kind pcKind) (*
 	// Раньше тут форсился All «чтобы обойти TURN ради битрейта», но:
 	//  1. удалённый пир в production сам Relay-only, поэтому selected pair всё
 	//     равно host↔relay — обход не работал (логи 2026-05-02: screen шёл
-	//     через n1.northwindcdn.com);
+	//     через TURN узла);
 	//  2. All переоткрывал тот самый CGNAT-баг, ради которого voice/files
 	//     откатили на Relay (direct-пара → DTLS consent-timeout), т.е. ронял
 	//     не только screen, но и грузил аплинк битыми кандидатами.
