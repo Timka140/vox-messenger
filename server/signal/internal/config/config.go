@@ -18,12 +18,13 @@ const (
 type Config struct {
 	Env string `yaml:"env" env:"ENV" env-default:"local"`
 
-	WS     WSConfig    `yaml:"ws"`
-	TURN   TURNConfig  `yaml:"turn"`
-	Debug  DebugConfig `yaml:"debug"`
+	WS      WSConfig      `yaml:"ws"`
+	TURN    TURNConfig    `yaml:"turn"`
+	Debug   DebugConfig   `yaml:"debug"`
 	SFU     SFUConfig     `yaml:"sfu"`
 	Groups  GroupConfig   `yaml:"groups"`
 	Cluster ClusterConfig `yaml:"cluster"`
+	Admin   AdminConfig   `yaml:"admin"`
 
 	// ReleasesDir — директория на диске с manifest.json и артефактами обновлений.
 	// Если пусто — endpoints /api/update/* возвращают 503. Auth_ok отправляется без LatestRelease.
@@ -66,8 +67,19 @@ type ClusterConfig struct {
 }
 
 type DebugConfig struct {
+	// Host — адрес debug-порта; по умолчанию только localhost, снаружи не виден.
+	Host string `yaml:"debug_host" env:"DEBUG_HOST" env-default:"127.0.0.1"`
 	Port int    `yaml:"debug_port" env:"DEBUG_PORT" env-default:"0"`
 	Dir  string `yaml:"debug_dir" env:"DEBUG_DIR" env-default:"./debug-logs"`
+}
+
+// AdminConfig — admin API /admin/v1/* (design/northwind-site/ADMIN-CONTRACT.md §1).
+// Token короче 32 символов — API выключен, все /admin/v1/* отвечают 404.
+type AdminConfig struct {
+	Token string `yaml:"admin_token" env:"ADMIN_TOKEN" env-default:""`
+	// ReleasePubKey — base64 Ed25519 ключ релизов (тот же, что в клиентах).
+	// Пусто — PUT /admin/v1/releases отвечает 503.
+	ReleasePubKey string `yaml:"release_pubkey" env:"RELEASE_PUBKEY" env-default:""`
 }
 
 type TURNConfig struct {
@@ -87,9 +99,9 @@ type SFUConfig struct {
 }
 
 type WSConfig struct {
-	Host string        `yaml:"host" env:"WS_HOST" env-default:"0.0.0.0"`
-	Port int           `yaml:"port" env:"WS_PORT" env-default:"8080"`
-	Path string        `yaml:"path" env:"WS_PATH" env-default:"/ws"`
+	Host string `yaml:"host" env:"WS_HOST" env-default:"0.0.0.0"`
+	Port int    `yaml:"port" env:"WS_PORT" env-default:"8080"`
+	Path string `yaml:"path" env:"WS_PATH" env-default:"/ws"`
 
 	ReadTimeout  time.Duration `yaml:"read_timeout" env:"WS_READ_TIMEOUT" env-default:"10s"`
 	WriteTimeout time.Duration `yaml:"write_timeout" env:"WS_WRITE_TIMEOUT" env-default:"10s"`

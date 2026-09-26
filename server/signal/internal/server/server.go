@@ -9,15 +9,18 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 
+	"messenger_signal/internal/admin"
 	"messenger_signal/internal/auth"
 	"messenger_signal/internal/cluster"
 	"messenger_signal/internal/config"
@@ -60,11 +63,15 @@ type Server struct {
 	server    *http.Server
 	logStore  *logstore.Store
 	debugSrv  *http.Server
-	logFile   string              // путь к vox-signal.log (для копирования своих логов)
-	releases  *releases.Store     // хранилище релизов клиентского приложения (может быть nil)
-	groups    *groupstore.Store   // server relay для больших групп (nil если отключён)
+	logFile   string            // путь к vox-signal.log (для копирования своих логов)
+	releases  *releases.Store   // хранилище релизов клиентского приложения (может быть nil)
+	groups    *groupstore.Store // server relay для больших групп (nil если отключён)
 	rate      *groupstore.RateLimiter
 	cluster   *cluster.Manager // узел кластера (nil — одиночный сервер)
+
+	// admin API /admin/v1/*: токен короче admin.MinTokenLen — выключен (404).
+	adminToken    string
+	releasePubKey ed25519.PublicKey
 
 	// sendLocks — порядок отправки в группу: запись в журнал, рассылка своим
 	// и реплика соседям идут под одним замком группы, чтобы на линк и
@@ -124,6 +131,50 @@ func (s *Server) SetReleasesStore(store *releases.Store) {
 	s.releases = store
 }
 
+// SetAdmin включает admin API /admin/v1/* (ADMIN-CONTRACT.md §1). Вызывать до
+// Handler/Start. releasePub nil — замена манифеста через API недоступна (503).
+func (s *Server) SetAdmin(token string, releasePub ed25519.PublicKey) {
+	s.adminToken = token
+	s.releasePubKey = releasePub
+}
+
+// adminHandler — подписанный admin API либо 404 на всё, если он выключен.
+func (s *Server) adminHandler() http.Handler {
+	if len(s.adminToken) < admin.MinTokenLen {
+		return admin.Disabled()
+	}
+	opt := admin.Options{
+		Token:         s.adminToken,
+		ReleasePubKey: s.releasePubKey,
+		NodeID:        s.identity.PubKeyHex(),
+		Clients:       s.hub.Count,
+		Log:           s.log,
+		Releases:      s.releases,
+		Logs:          s.logStore,
+		Cluster: func() admin.ClusterInfo {
+			if s.cluster == nil {
+				return admin.ClusterInfo{Enabled: false}
+			}
+			h := s.cluster.Health()
+			ci := admin.ClusterInfo{Enabled: true, Self: s.cluster.SelfAddr(), Peers: []admin.ClusterPeer{}}
+			for _, l := range h.Links {
+				ci.Peers = append(ci.Peers, admin.ClusterPeer{Addr: l.Addr, ID: l.NodeID, Connected: l.Alive})
+			}
+			return ci
+		},
+	}
+	if s.groups != nil {
+		opt.Groups = func() (int, bool) {
+			g, err := s.groups.AllGroups()
+			if err != nil {
+				return 0, false
+			}
+			return len(g), true
+		}
+	}
+	return admin.New(opt).Handler()
+}
+
 // SetLogStore устанавливает хранилище debug-логов
 func (s *Server) SetLogStore(store *logstore.Store, logFile string) {
 	s.logStore = store
@@ -140,6 +191,7 @@ func (s *Server) Handler() http.Handler {
 	// (если WS проходит firewall — эти тоже пройдут)
 	mux.HandleFunc("/api/update/manifest", s.handleUpdateManifest)
 	mux.HandleFunc("/api/update/download/", s.handleUpdateDownload)
+	mux.Handle("/admin/v1/", s.adminHandler())
 	return mux
 }
 
@@ -620,8 +672,9 @@ func (s *Server) handleMessage(peer *hub.Peer, msg *protocol.Message) {
 	}
 }
 
-// StartDebug запускает debug HTTP сервер на отдельном порту (только localhost)
-func (s *Server) StartDebug(port int) error {
+// StartDebug запускает debug HTTP сервер на отдельном порту. host пуст —
+// 127.0.0.1: порт не должен быть виден снаружи.
+func (s *Server) StartDebug(host string, port int) error {
 	if s.logStore == nil {
 		return fmt.Errorf("logStore не настроен")
 	}
@@ -741,7 +794,10 @@ func (s *Server) StartDebug(port int) error {
 		json.NewEncoder(w).Encode(result)
 	})
 
-	addr := fmt.Sprintf("localhost:%d", port)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	s.debugSrv = &http.Server{
 		Addr:    addr,
 		Handler: mux,
