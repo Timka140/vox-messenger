@@ -23,6 +23,7 @@ const (
 	mnemonicErrMixedLang   = "mixed_lang"
 	mnemonicErrMismatch    = "phrase_mismatch"
 	mnemonicErrHasProfile  = "profile_exists"
+	mnemonicErrBusy        = "busy" // другой вызов уже готовит профиль
 )
 
 // MnemonicPhrase — одна и та же новая фраза на двух языках.
@@ -64,6 +65,15 @@ func (s *IdentityService) NewMnemonic() (MnemonicPhrase, error) {
 func (s *IdentityService) ApplyMnemonic(phrase string, discardBackup bool) (string, error) {
 	const op = "IdentityService.ApplyMnemonic"
 
+	// Без блокировки второй вызов (двойная отправка) видел бы временную
+	// строку identity первого или писал бы те же vox.db.new/vox.key.new.
+	if !s.applyMu.TryLock() {
+		return "", errors.New(mnemonicErrBusy)
+	}
+	defer s.applyMu.Unlock()
+	if s.applied {
+		return "", errors.New(mnemonicErrBusy)
+	}
 	if s.sess.IsActive() {
 		return "", errors.New(mnemonicErrHasProfile)
 	}
@@ -161,6 +171,7 @@ func (s *IdentityService) ApplyMnemonic(phrase string, discardBackup bool) (stri
 }
 
 func (s *IdentityService) relaunch() error {
+	s.applied = true
 	if err := relaunchSelf(); err != nil {
 		// Файлы уже готовы: при ручном запуске подмена всё равно произойдёт.
 		s.log.Error("перезапуск не удался", slog.String("error", err.Error()))

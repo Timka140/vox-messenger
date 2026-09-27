@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"vox_app/internal/network"
@@ -139,7 +140,9 @@ type UpdateService struct {
 	emit           func(string, any)
 	quit           func() // завершение после применения/отката (SetQuit)
 
-	mu            sync.RWMutex
+	mu sync.RWMutex
+	// latestRelease — latest из последнего проверенного манифеста (для
+	// Настроек); подсказка auth_ok не подписана и сюда не попадает.
 	latestRelease *network.LatestReleaseInfo
 	pendingStage  string                // абс. путь к stage dir с верифицированным bundle
 	pendingEntry  *ManifestReleaseEntry // скачанный entry (нужен для Apply)
@@ -151,7 +154,19 @@ type UpdateService struct {
 	// repairMu сериализует параллельные RepairAssets (на каждый reconnect emit).
 	// Пишет в <exeDir> напрямую — другая зона от updateMu, не конфликтуют.
 	repairMu sync.Mutex
+
+	// confirming — confirmAndEmit уже идёт: повторные auth_ok (reconnect)
+	// не плодят параллельные походы за манифестом.
+	confirming atomic.Bool
 }
+
+// manifestClient — манифест маленький: общий таймаут, чтобы зависшее
+// соединение не держало горутину вечно.
+var manifestClient = &http.Client{Timeout: 15 * time.Second}
+
+// confirmRetryDelays — паузы перед повторами confirmAndEmit, если манифест
+// не получен (сеть, рестарт узла). Уведомление об отзыве терять нельзя.
+var confirmRetryDelays = []time.Duration{5 * time.Second, 30 * time.Second}
 
 func NewUpdateService(log *slog.Logger, appVersion, pubKeyB64 string, getServerBase func() string) *UpdateService {
 	s := &UpdateService{
@@ -187,10 +202,9 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 	if info == nil {
 		return
 	}
-	s.mu.Lock()
-	s.latestRelease = info
+	s.mu.RLock()
 	fn := s.emit
-	s.mu.Unlock()
+	s.mu.RUnlock()
 
 	s.log.Info("📦 latest release available",
 		slog.String("current", s.currentRaw),
@@ -208,8 +222,11 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 	// под эту платформу) принимается по манифесту, иначе подложный revoked
 	// откатил бы клиента, а force без сборки под платформу запер бы UI.
 	revoked := info.Version != s.currentRaw && slices.Contains(info.Revoked, s.currentRaw)
-	if fn != nil && (s.isNewerVersion(info.Version) || revoked) {
-		go s.confirmAndEmit(fn)
+	if fn != nil && (s.isNewerVersion(info.Version) || revoked) && s.confirming.CompareAndSwap(false, true) {
+		go func() {
+			defer s.confirming.Store(false)
+			s.confirmAndEmit(fn)
+		}()
 	}
 }
 
@@ -217,6 +234,13 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 // сообщает фронту только о подтверждённом обновлении.
 func (s *UpdateService) confirmAndEmit(fn func(string, any)) {
 	res, err := s.CheckForUpdates()
+	// Неверная подпись повтором не лечится — повторяем только сбои получения.
+	for i := 0; err != nil && !errors.Is(err, ErrVerifyFailed) && i < len(confirmRetryDelays); i++ {
+		s.log.Warn("update: манифест для auth_ok не получен, повтор",
+			slog.String("error", err.Error()), slog.Duration("in", confirmRetryDelays[i]))
+		time.Sleep(confirmRetryDelays[i])
+		res, err = s.CheckForUpdates()
+	}
 	if err != nil {
 		s.log.Warn("update: манифест для auth_ok не получен", slog.String("error", err.Error()))
 		return
@@ -256,7 +280,13 @@ func (s *UpdateService) CheckForUpdates() (*CheckResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.checkManifest(m), nil
+	res := s.checkManifest(m)
+	if res.Latest != "" {
+		s.mu.Lock()
+		s.latestRelease = &network.LatestReleaseInfo{Version: res.Latest, Force: res.Force}
+		s.mu.Unlock()
+	}
+	return res, nil
 }
 
 // checkManifest сравнивает (уже проверенный) манифест с текущей версией.
@@ -325,7 +355,7 @@ func (s *UpdateService) DownloadUpdate(ver string) (*DownloadResult, error) {
 	}
 	// Старшую версию ставим только как откат с отозванной текущей — и только
 	// ту, что манифест назначил latest.
-	if !s.isNewerVersion(ver) && !(ver == m.Latest && s.isRevokedCurrent(m)) {
+	if !s.isNewerVersion(ver) && !(ver == m.Latest && ver != s.currentRaw && s.isRevokedCurrent(m)) {
 		return nil, fmt.Errorf("version %s is not an update for %s", ver, s.currentRaw)
 	}
 
@@ -1031,7 +1061,7 @@ func (s *UpdateService) fetchManifest() (*Manifest, error) {
 		return nil, fmt.Errorf("no active signal server connection")
 	}
 	url := serverBase + "/api/update/manifest"
-	resp, err := http.Get(url)
+	resp, err := manifestClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("manifest get: %w", err)
 	}

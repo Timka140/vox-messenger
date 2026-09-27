@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -150,5 +151,63 @@ func TestManifestRevokedCurrent(t *testing.T) {
 	m.Releases[0].Revoked = false
 	if s.isRevokedCurrent(m) {
 		t.Fatal("без флага — не отозвана")
+	}
+}
+// Отозванная текущая версия, которую манифест же назначил latest, — не
+// повод переустанавливать её саму (и затирать слот отката).
+func TestDownloadUpdateRefusesRevokedCurrentAsLatest(t *testing.T) {
+	s, _ := newRevokedTestService(t, "v0.00.000.0083", &Manifest{Latest: "v0.00.000.0083", Releases: []ManifestReleaseEntry{
+		{Version: "v0.00.000.0083", Revoked: true, Platforms: withBuild()},
+	}})
+	_, err := s.DownloadUpdate("v0.00.000.0083")
+	if err == nil || !strings.Contains(err.Error(), "is not an update") {
+		t.Fatalf("ожидали отказ, получили %v", err)
+	}
+}
+
+// Манифест не получен с первого раза (рестарт узла) — уведомление об отзыве
+// всё равно доходит после повтора.
+func TestAuthOKRetriesManifestFetch(t *testing.T) {
+	orig := confirmRetryDelays
+	confirmRetryDelays = []time.Duration{10 * time.Millisecond, 10 * time.Millisecond}
+	t.Cleanup(func() { confirmRetryDelays = orig })
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(&Manifest{Latest: "v0.00.000.0082", Releases: []ManifestReleaseEntry{
+		{Version: "v0.00.000.0083", Revoked: true, Platforms: withBuild()},
+		{Version: "v0.00.000.0082", Platforms: withBuild()},
+	}})
+	sum := sha256.Sum256(body)
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(priv, sum[:]))
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("X-Signature", sig)
+		w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+
+	s := NewUpdateService(slog.New(slog.NewTextHandler(io.Discard, nil)), "v0.00.000.0083",
+		base64.StdEncoding.EncodeToString(pub), func() string { return srv.URL })
+	got := make(chan map[string]any, 4)
+	s.SetEmitter(func(name string, data any) {
+		if name == "vox:update-available" {
+			got <- data.(map[string]any)
+		}
+	})
+	s.OnLatestReleaseFromAuthOK(&network.LatestReleaseInfo{
+		Version: "v0.00.000.0082", Revoked: []string{"v0.00.000.0083"},
+	})
+	if ev := expectEvent(t, got); ev["version"] != "v0.00.000.0082" || ev["revoked"] != true {
+		t.Fatalf("ожидался откат до 0082, получено %v", ev)
+	}
+	if lr := s.GetLatestRelease(); lr == nil || lr.Version != "v0.00.000.0082" {
+		t.Fatalf("GetLatestRelease: %+v", lr)
 	}
 }

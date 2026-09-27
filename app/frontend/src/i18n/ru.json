@@ -262,6 +262,8 @@
   "setup.restore.button": "Восстановить",
   "setup.creating.title": "Создаём профиль…",
   "setup.creating.desc": "Vox перезапустится — это займёт несколько секунд.",
+  "setup.broken.title": "Профиль не загружается",
+  "setup.broken.desc": "Профиль на этом устройстве повреждён. Vox не заменяет его новым, чтобы он не потерялся.",
   "setup.creating.manual": "Профиль готов. Закройте и снова откройте Vox, чтобы продолжить.",
   "setup.err.word_count": "Нужно 12 слов.",
   "setup.err.unknown_word": "Слова {n} нет в списке. Проверьте написание.",

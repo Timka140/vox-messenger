@@ -262,6 +262,8 @@
   "setup.restore.button": "Restore",
   "setup.creating.title": "Creating profile…",
   "setup.creating.desc": "Vox will restart. This takes a few seconds.",
+  "setup.broken.title": "Profile won't load",
+  "setup.broken.desc": "The profile on this device is damaged. Vox won't replace it with a new one, so you don't lose it.",
   "setup.creating.manual": "Your profile is ready. Close and reopen Vox to continue.",
   "setup.err.word_count": "The phrase needs 12 words.",
   "setup.err.unknown_word": "Word {n} is not in the list. Check the spelling.",
