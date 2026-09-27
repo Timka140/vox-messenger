@@ -3,54 +3,143 @@ package services
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"vox_app/internal/network"
 )
 
-func newRevokedTestService(t *testing.T, current string) (*UpdateService, *[]map[string]any) {
+var thisPlatform = runtime.GOOS + "-" + runtime.GOARCH
+
+// newRevokedTestService — сервис с сервером, отдающим подписанный манифест m.
+// События vox:update-available приходят в канал (auth_ok сверяется асинхронно).
+func newRevokedTestService(t *testing.T, current string, m *Manifest) (*UpdateService, chan map[string]any) {
 	t.Helper()
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
+	base := ""
+	if m != nil {
+		body, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(body)
+		sig := base64.StdEncoding.EncodeToString(ed25519.Sign(priv, sum[:]))
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Signature", sig)
+			w.Write(body)
+		}))
+		t.Cleanup(srv.Close)
+		base = srv.URL
+	}
 	s := NewUpdateService(slog.New(slog.NewTextHandler(io.Discard, nil)), current,
-		base64.StdEncoding.EncodeToString(pub), func() string { return "" })
-	var got []map[string]any
+		base64.StdEncoding.EncodeToString(pub), func() string { return base })
+	got := make(chan map[string]any, 4)
 	s.SetEmitter(func(name string, data any) {
 		if name == "vox:update-available" {
-			got = append(got, data.(map[string]any))
+			got <- data.(map[string]any)
 		}
 	})
-	return s, &got
+	return s, got
+}
+
+func withBuild() map[string]ManifestPlatformBundle {
+	return map[string]ManifestPlatformBundle{thisPlatform: {Entry: "vox", Files: []ManifestFile{{}}}}
+}
+
+func expectEvent(t *testing.T, got chan map[string]any) map[string]any {
+	t.Helper()
+	select {
+	case ev := <-got:
+		return ev
+	case <-time.After(3 * time.Second):
+		t.Fatal("событие vox:update-available не пришло")
+		return nil
+	}
+}
+
+func expectNoEvent(t *testing.T, got chan map[string]any) {
+	t.Helper()
+	select {
+	case ev := <-got:
+		t.Fatalf("событие не ожидалось: %v", ev)
+	case <-time.After(300 * time.Millisecond):
+	}
 }
 
 // Откат из админки: клиент на отозванной версии получает latest, даже если он старше.
 func TestAuthOKRevokedCurrentOffersDowngrade(t *testing.T) {
-	s, got := newRevokedTestService(t, "v0.00.000.0083")
+	s, got := newRevokedTestService(t, "v0.00.000.0083", &Manifest{Latest: "v0.00.000.0082", Releases: []ManifestReleaseEntry{
+		{Version: "v0.00.000.0083", Revoked: true, Platforms: withBuild()},
+		{Version: "v0.00.000.0082", Platforms: withBuild()},
+	}})
 	s.OnLatestReleaseFromAuthOK(&network.LatestReleaseInfo{
 		Version: "v0.00.000.0082", Revoked: []string{"v0.00.000.0083"},
 	})
-	if len(*got) != 1 || (*got)[0]["version"] != "v0.00.000.0082" || (*got)[0]["force"] != true {
-		t.Fatalf("ожидалось принудительное обновление до 0082, получено %v", *got)
+	ev := expectEvent(t, got)
+	if ev["version"] != "v0.00.000.0082" || ev["force"] != true || ev["revoked"] != true {
+		t.Fatalf("ожидалось принудительное обновление до 0082, получено %v", ev)
 	}
 }
 
+// Неподписанный revoked в auth_ok без подтверждения манифестом не откатывает.
+func TestAuthOKRevokedNotInManifestIgnored(t *testing.T) {
+	s, got := newRevokedTestService(t, "v0.00.000.0083", &Manifest{Latest: "v0.00.000.0083", Releases: []ManifestReleaseEntry{
+		{Version: "v0.00.000.0083", Platforms: withBuild()},
+		{Version: "v0.00.000.0082", Platforms: withBuild()},
+	}})
+	s.OnLatestReleaseFromAuthOK(&network.LatestReleaseInfo{
+		Version: "v0.00.000.0082", Revoked: []string{"v0.00.000.0083"},
+	})
+	expectNoEvent(t, got)
+}
+
+// Откат на релиз без сборки под эту платформу не показывает force-модалку.
+func TestAuthOKRevokedNoBuildForPlatformIgnored(t *testing.T) {
+	other := map[string]ManifestPlatformBundle{"plan9-mips": {Entry: "vox", Files: []ManifestFile{{}}}}
+	s, got := newRevokedTestService(t, "v0.00.000.0083", &Manifest{Latest: "v0.00.000.0082", Releases: []ManifestReleaseEntry{
+		{Version: "v0.00.000.0083", Revoked: true, Platforms: withBuild()},
+		{Version: "v0.00.000.0082", Platforms: other},
+	}})
+	s.OnLatestReleaseFromAuthOK(&network.LatestReleaseInfo{
+		Version: "v0.00.000.0082", Revoked: []string{"v0.00.000.0083"},
+	})
+	expectNoEvent(t, got)
+}
+
 func TestAuthOKOlderNotRevokedIgnored(t *testing.T) {
-	s, got := newRevokedTestService(t, "v0.00.000.0083")
+	s, got := newRevokedTestService(t, "v0.00.000.0083", nil)
 	s.OnLatestReleaseFromAuthOK(&network.LatestReleaseInfo{
 		Version: "v0.00.000.0082", Revoked: []string{"v0.00.000.0081"},
 	})
-	if len(*got) != 0 {
-		t.Fatalf("старшая версия без отзыва не предлагается: %v", *got)
+	expectNoEvent(t, got)
+}
+
+// DownloadUpdate не ставит старшую версию, если манифест не отзывал текущую.
+func TestDownloadRefusesDowngradeWithoutRevoke(t *testing.T) {
+	s, _ := newRevokedTestService(t, "v0.00.000.0083", &Manifest{Latest: "v0.00.000.0083", Releases: []ManifestReleaseEntry{
+		{Version: "v0.00.000.0083", Platforms: withBuild()},
+		{Version: "v0.00.000.0082", Platforms: withBuild()},
+	}})
+	_, err := s.DownloadUpdate("v0.00.000.0082")
+	if err == nil || !strings.Contains(err.Error(), "not an update") {
+		t.Fatalf("ожидался отказ, получено %v", err)
 	}
 }
 
 func TestManifestRevokedCurrent(t *testing.T) {
-	s, _ := newRevokedTestService(t, "v0.00.000.0083")
+	s, _ := newRevokedTestService(t, "v0.00.000.0083", nil)
 	m := &Manifest{Latest: "v0.00.000.0082", Releases: []ManifestReleaseEntry{
 		{Version: "v0.00.000.0083", Revoked: true},
 		{Version: "v0.00.000.0082"},

@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	maxSkew      = 60 * time.Second
-	replayWindow = 120 * time.Second
+	maxSkew = 60 * time.Second
+	// replayWindow — с запасом над ±maxSkew: запись живёт дольше, чем
+	// подпись проходит проверку времени, в том числе на самой границе.
+	replayWindow = 2*maxSkew + time.Second
 	maxBody      = 4 << 20
 	// maxReplay — потолок кеша подписей; записать в него может только
 	// владелец токена, так что это защита от собственной ошибки, не от атаки.
@@ -81,7 +83,9 @@ func (a *API) auth(next http.Handler) http.Handler {
 		}
 		now := a.now()
 		d := now.Sub(time.UnixMilli(tsMs))
-		if d > maxSkew || d < -maxSkew {
+		// Старт сравниваем в миллисекундах, как и ts: иначе запрос в ту же
+		// миллисекунду, что и старт, выглядел бы подписанным раньше него.
+		if d > maxSkew || d < -maxSkew || tsMs < a.started.UnixMilli() {
 			writeErr(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}

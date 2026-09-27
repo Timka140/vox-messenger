@@ -170,11 +170,11 @@ func (s *Server) adminHandler() http.Handler {
 	}
 	if s.groups != nil {
 		opt.Groups = func() (int, bool) {
-			g, err := s.groups.AllGroups()
+			n, err := s.groups.CountGroups()
 			if err != nil {
 				return 0, false
 			}
-			return len(g), true
+			return n, true
 		}
 	}
 	return admin.New(opt).Handler()

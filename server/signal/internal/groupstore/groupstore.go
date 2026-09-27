@@ -503,6 +503,13 @@ func (s *Store) MembersFull(groupID string) ([]MemberRow, error) {
 	return out, rows.Err()
 }
 
+// CountGroups — число групп на узле (статус админки).
+func (s *Store) CountGroups() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM server_groups`).Scan(&n)
+	return n, err
+}
+
 // AllGroups — все группы узла.
 func (s *Store) AllGroups() ([]GroupInfo, error) {
 	rows, err := s.db.Query(`SELECT id, created_at FROM server_groups`)

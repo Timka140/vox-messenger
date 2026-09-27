@@ -25,6 +25,9 @@ func newTestAPI(t *testing.T, opt Options) http.Handler {
 	t.Helper()
 	opt.Token = testToken
 	opt.Now = func() time.Time { return testNow }
+	if opt.Started.IsZero() {
+		opt.Started = testNow.Add(-time.Hour)
+	}
 	opt.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	return New(opt).Handler()
 }
@@ -151,6 +154,17 @@ func TestAuth(t *testing.T) {
 		h.ServeHTTP(w2, r2)
 		if w1.Code != 200 || w2.Code != 401 {
 			t.Fatalf("first %d, second %d", w1.Code, w2.Code)
+		}
+	})
+
+	// Узел перезапущен: кеш повторов пуст, подписи до старта не принимаются.
+	t.Run("signed before restart", func(t *testing.T) {
+		hr := newTestAPI(t, Options{Started: testNow.Add(-10 * time.Second)})
+		if w := req(hr, "GET", "/admin/v1/status", nil, -20*time.Second); w.Code != 401 {
+			t.Fatalf("до старта: code %d", w.Code)
+		}
+		if w := req(hr, "GET", "/admin/v1/status", nil, -5*time.Second); w.Code != 200 {
+			t.Fatalf("после старта: code %d", w.Code)
 		}
 	})
 

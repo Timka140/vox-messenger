@@ -92,6 +92,9 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
+// allowSetForegroundWindow — только Windows; на Unix окно поднимает сам процесс.
+func allowSetForegroundWindow(int) error { return nil }
+
 // startDetached запускает exe заново с --from-update --wait-pid <pid> (Unix).
 func startDetached(exe string) (int, error) {
 	cmd := exec.Command(exe, updateRelaunchFlagUnix, updateWaitPidFlagUnix, strconv.Itoa(os.Getpid()))

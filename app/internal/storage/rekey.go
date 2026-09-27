@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"vox_app/internal/identity"
 )
 
 // Файлы, которые готовит создание профиля из секретной фразы: база, перешифрованная
@@ -44,7 +45,7 @@ func ApplyPendingRekey(dataDir string) (SwapResult, error) {
 	case !hasDB && !hasKey:
 		return SwapNone, nil
 	case hasKey && !hasDB:
-		if key, err := readHexKey(newKey); err == nil && KeyOpens(dbPath, key) {
+		if key, err := identity.ReadDBKey(newKey); err == nil && KeyOpens(dbPath, key) {
 			if err := os.Rename(newKey, keyPath); err != nil {
 				return SwapNone, fmt.Errorf("%s: rename key: %w", op, err)
 			}
@@ -87,18 +88,6 @@ func KeyOpens(path string, key []byte) bool {
 	defer db.Close()
 	var n int
 	return db.QueryRow("SELECT count(*) FROM sqlite_master").Scan(&n) == nil
-}
-
-func readHexKey(path string) ([]byte, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	key, err := hex.DecodeString(strings.TrimSpace(string(data)))
-	if err != nil || len(key) != 32 {
-		return nil, fmt.Errorf("invalid key file %s", filepath.Base(path))
-	}
-	return key, nil
 }
 
 func fileExists(p string) bool {
