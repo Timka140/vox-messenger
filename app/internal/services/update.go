@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,11 +46,13 @@ type Manifest struct {
 
 // ManifestReleaseEntry — один релиз.
 type ManifestReleaseEntry struct {
-	Version    string                           `json:"version"`
-	ReleasedAt time.Time                        `json:"released_at"`
-	Changelog  string                           `json:"changelog"`
-	Force      bool                             `json:"force"`
-	Platforms  map[string]ManifestPlatformBundle `json:"platforms"`
+	Version    string    `json:"version"`
+	ReleasedAt time.Time `json:"released_at"`
+	Changelog  string    `json:"changelog"`
+	Force      bool      `json:"force"`
+	// Revoked — версия отозвана: клиент на ней ставит latest, даже если latest старше.
+	Revoked   bool                              `json:"revoked,omitempty"`
+	Platforms map[string]ManifestPlatformBundle `json:"platforms"`
 }
 
 // ManifestPlatformBundle — bundle файлов для одной платформы.
@@ -136,7 +139,7 @@ type UpdateService struct {
 
 	mu            sync.RWMutex
 	latestRelease *network.LatestReleaseInfo
-	pendingStage  string               // абс. путь к stage dir с верифицированным bundle
+	pendingStage  string                // абс. путь к stage dir с верифицированным bundle
 	pendingEntry  *ManifestReleaseEntry // скачанный entry (нужен для Apply)
 
 	// updateMu сериализует параллельные DownloadUpdate (двойной клик / автотриггер).
@@ -198,11 +201,13 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 		return
 	}
 
-	if fn != nil && s.isNewerVersion(info.Version) {
+	revoked := info.Version != s.currentRaw && slices.Contains(info.Revoked, s.currentRaw)
+	if fn != nil && (s.isNewerVersion(info.Version) || revoked) {
 		fn("vox:update-available", map[string]any{
 			"version":   info.Version,
-			"force":     info.Force,
+			"force":     info.Force || revoked,
 			"changelog": info.Changelog,
+			"revoked":   revoked,
 		})
 	}
 }
@@ -246,12 +251,14 @@ func (s *UpdateService) CheckForUpdates() (*CheckResult, error) {
 		return &CheckResult{Available: false, Current: s.currentRaw}, nil
 	}
 
+	// Текущая версия отозвана — ставим latest, даже если он старше (откат).
+	revoked := latestEntry.Version != s.currentRaw && s.isRevokedCurrent(m)
 	result := &CheckResult{
 		Current:   s.currentRaw,
 		Latest:    latestEntry.Version,
 		Changelog: latestEntry.Changelog,
-		Force:     latestEntry.Force,
-		Available: s.isNewerVersion(latestEntry.Version),
+		Force:     latestEntry.Force || revoked,
+		Available: s.isNewerVersion(latestEntry.Version) || revoked,
 	}
 
 	platformKey := runtime.GOOS + "-" + runtime.GOARCH
@@ -1037,6 +1044,16 @@ func (s *UpdateService) fetchManifest() (*Manifest, error) {
 			m.Version, ManifestFormatVersion)
 	}
 	return &m, nil
+}
+
+// isRevokedCurrent — текущая версия помечена в манифесте как отозванная.
+func (s *UpdateService) isRevokedCurrent(m *Manifest) bool {
+	for _, r := range m.Releases {
+		if r.Version == s.currentRaw {
+			return r.Revoked
+		}
+	}
+	return false
 }
 
 func (s *UpdateService) isNewerVersion(ver string) bool {

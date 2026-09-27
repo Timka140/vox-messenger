@@ -303,6 +303,7 @@ func main() {
 	callsSvc := services.NewCallsService(logger, sess, store, networkSvc, voiceSvc)
 	screenSvc := services.NewScreenShareService(logger, store, sess, networkSvc, groupsSvc, voiceSvc)
 	friendsSvc := services.NewFriendsService(logger, sess, store, networkSvc)
+	network.AppVersion = AppVersion
 	updateSvc := services.NewUpdateService(logger, AppVersion, UpdatePublicKey, networkSvc.ActiveSignalHTTPBase)
 	updateSvc.CleanupOldBackups()
 

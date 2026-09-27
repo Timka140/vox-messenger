@@ -26,6 +26,12 @@ function isNewer(latest) {
     return compareVersions(latest, updateState.current) > 0;
 }
 
+// offered — предлагать ли обновление: версия новее или текущая отозвана
+// (откат из админки ставит более старую latest, revoked приходит из Go).
+function offered(info) {
+    return !!info && (info.revoked === true || isNewer(info.version));
+}
+
 // Простое сравнение версий формата vMAJ.MIN.PAT.BLD
 function compareVersions(a, b) {
     var re = /^v(\d+)\.(\d+)\.(\d+)\.(\d+)$/;
@@ -61,7 +67,7 @@ export function lastUpdateCheck() {
 
 // pendingUpdateVersion — более новая известная версия (баннер), иначе "".
 export function pendingUpdateVersion() {
-    return updateState.latest && isNewer(updateState.latest.version) ? updateState.latest.version : "";
+    return offered(updateState.latest) ? updateState.latest.version : "";
 }
 
 export async function initUpdates() {
@@ -72,7 +78,7 @@ export async function initUpdates() {
         if (!info) return;
         updateState.latest = info;
         // Force-апдейт всегда показываем, остальное — только при включённой авто-проверке
-        if (!isNewer(info.version)) return;
+        if (!offered(info)) return;
         if (info.force || isAutoCheckEnabled()) {
             showBanner(info);
         }
@@ -225,7 +231,8 @@ export async function checkForUpdates() {
         var res = await svc("CheckForUpdates");
         try { localStorage.setItem(LAST_CHECK_KEY, String(Date.now())); } catch (e) {}
         if (res && res.available && res.supported_for_platform) {
-            updateState.latest = { version: res.latest, force: res.force, changelog: res.changelog };
+            // available решил Go; не новее текущей — значит, текущая отозвана (откат).
+            updateState.latest = { version: res.latest, force: res.force, changelog: res.changelog, revoked: !isNewer(res.latest) };
             showBanner(updateState.latest);
         }
         return res;

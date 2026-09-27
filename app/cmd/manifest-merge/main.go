@@ -52,11 +52,13 @@ type Manifest struct {
 }
 
 type ReleaseEntry struct {
-	Version    string                    `json:"version"`
-	ReleasedAt time.Time                 `json:"released_at"`
-	Changelog  string                    `json:"changelog"`
-	Force      bool                      `json:"force"`
-	Platforms  map[string]PlatformBundle `json:"platforms"`
+	Version    string    `json:"version"`
+	ReleasedAt time.Time `json:"released_at"`
+	Changelog  string    `json:"changelog"`
+	Force      bool      `json:"force"`
+	// Revoked — версия отозвана в админке; merge обязан сохранить флаг.
+	Revoked   bool                      `json:"revoked,omitempty"`
+	Platforms map[string]PlatformBundle `json:"platforms"`
 }
 
 type PlatformBundle struct {

@@ -19,16 +19,16 @@ import (
 
 // Типы сообщений (дублируем из server/signal/pkg/protocol чтобы не тянуть зависимость)
 const (
-	TypeChallenge  = "challenge"
-	TypeAuth       = "auth"
-	TypeAuthOK     = "auth_ok"
-	TypeOffer      = "offer"
-	TypeAnswer     = "answer"
-	TypeICE        = "ice"
-	TypePeerSearch = "peer_search"
-	TypePeerResult = "peer_result"
-	TypePeerOnline  = "peer_online"
-	TypePeerOffline = "peer_offline"
+	TypeChallenge     = "challenge"
+	TypeAuth          = "auth"
+	TypeAuthOK        = "auth_ok"
+	TypeOffer         = "offer"
+	TypeAnswer        = "answer"
+	TypeICE           = "ice"
+	TypePeerSearch    = "peer_search"
+	TypePeerResult    = "peer_result"
+	TypePeerOnline    = "peer_online"
+	TypePeerOffline   = "peer_offline"
 	TypeUpdateNickTag = "update_nick_tag"
 	TypePresenceWatch = "presence_watch" // кому виден мой статус «в сети» (полная замена списка)
 	TypeFriendRequest = "friend_request"
@@ -86,7 +86,7 @@ type ChallengePayload struct {
 }
 
 type AuthPayload struct {
-	PublicKey       string `json:"public_key"`       // hex-encoded Ed25519 public key клиента
+	PublicKey       string `json:"public_key"` // hex-encoded Ed25519 public key клиента
 	NickTag         string `json:"nick_tag"`
 	Signature       string `json:"signature"`        // hex-encoded Ed25519 signature of server challenge
 	ClientChallenge string `json:"client_challenge"` // hex-encoded random bytes для mutual auth
@@ -96,7 +96,14 @@ type AuthPayload struct {
 	// RedirectOK — клиент понимает redirect вместо auth_ok (узел кластера
 	// перегружен и отправляет на соседа).
 	RedirectOK bool `json:"redirect_ok,omitempty"`
+	// AppVersion — версия клиента для статистики админки (сколько онлайн на
+	// какой версии). Старый сервер поле игнорирует.
+	AppVersion string `json:"app_version,omitempty"`
 }
+
+// AppVersion — версия этой сборки (main.AppVersion), уходит в auth.
+// «dev» и пустая не отправляются.
+var AppVersion string
 
 // ServerNode — узел кластера из server_list (зеркало server/signal/pkg/protocol).
 type ServerNode struct {
@@ -283,6 +290,16 @@ type LatestReleaseInfo struct {
 	Version   string `json:"version"`
 	Force     bool   `json:"force"`
 	Changelog string `json:"changelog"`
+	// Revoked — отозванные версии: клиент на такой версии ставит Version,
+	// даже если она старше (откат из админки).
+	Revoked []string `json:"revoked,omitempty"`
+}
+
+func authAppVersion() string {
+	if AppVersion == "" || AppVersion == "dev" {
+		return ""
+	}
+	return AppVersion
 }
 
 // MessageHandler — обработчик входящих сообщений от сигнального сервера
@@ -508,6 +525,7 @@ func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string,
 		ClientChallenge: hex.EncodeToString(clientChallenge),
 		Presence:        presence,
 		RedirectOK:      true,
+		AppVersion:      authAppVersion(),
 	})
 	if err != nil {
 		conn.Close()
