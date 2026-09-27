@@ -20,10 +20,10 @@ const (
 
 // SourceInfo — информация об источнике логов
 type SourceInfo struct {
-	Name        string    `json:"name"`
-	Files       int       `json:"files"`
-	TotalBytes  int64     `json:"total_bytes"`
-	LastPushAt  time.Time `json:"last_push_at"`
+	Name       string    `json:"name"`
+	Files      int       `json:"files"`
+	TotalBytes int64     `json:"total_bytes"`
+	LastPushAt time.Time `json:"last_push_at"`
 }
 
 // Store — хранилище debug-логов на диске
@@ -275,6 +275,11 @@ func (s *Store) cleanupLoop() {
 }
 
 var safeRe = regexp.MustCompile(`[^a-zA-Z0-9#_\-]`)
+
+// SourceName — имя каталога (источника), под которым сохраняются логи source.
+func SourceName(source string) string {
+	return sanitize(source)
+}
 
 func sanitize(name string) string {
 	s := safeRe.ReplaceAllString(name, "_")

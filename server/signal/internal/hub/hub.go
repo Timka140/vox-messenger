@@ -531,6 +531,42 @@ func (h *Hub) SendToAll(data []byte) {
 	}
 }
 
+// SendWhere отправляет data подключённым пирам, для которых match вернул true.
+// Возвращает, скольким удалось поставить в очередь.
+func (h *Hub) SendWhere(match func(p *Peer) bool, data []byte) int {
+	h.mu.RLock()
+	peers := make([]*Peer, 0, len(h.peers))
+	for _, p := range h.peers {
+		if match(p) {
+			peers = append(peers, p)
+		}
+	}
+	h.mu.RUnlock()
+
+	sent := 0
+	for _, p := range peers {
+		if p.Send(data) == nil {
+			sent++
+		}
+	}
+	return sent
+}
+
+// VersionCounts — подключённые пиры по версии приложения; без версии — "unknown".
+func (h *Hub) VersionCounts() map[string]int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make(map[string]int)
+	for _, p := range h.peers {
+		v := p.AppVersion
+		if v == "" {
+			v = "unknown"
+		}
+		out[v]++
+	}
+	return out
+}
+
 // UpdateNickTag обновляет nick_tag уже зарегистрированного пира.
 // Используется при смене ника без переподключения WS (чтобы не рвать P2P).
 // Возвращает старый ник и true, если пир найден.

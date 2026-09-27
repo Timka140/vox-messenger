@@ -144,13 +144,14 @@ func (s *Server) adminHandler() http.Handler {
 		return admin.Disabled()
 	}
 	opt := admin.Options{
-		Token:         s.adminToken,
-		ReleasePubKey: s.releasePubKey,
-		NodeID:        s.identity.PubKeyHex(),
-		Clients:       s.hub.Count,
-		Log:           s.log,
-		Releases:      s.releases,
-		Logs:          s.logStore,
+		Token:          s.adminToken,
+		ReleasePubKey:  s.releasePubKey,
+		NodeID:         s.identity.PubKeyHex(),
+		Clients:        s.hub.Count,
+		ClientVersions: s.hub.VersionCounts,
+		Log:            s.log,
+		Releases:       s.releases,
+		Logs:           s.logStore,
 		Cluster: func() admin.ClusterInfo {
 			if s.cluster == nil {
 				return admin.ClusterInfo{Enabled: false}
@@ -162,6 +163,10 @@ func (s *Server) adminHandler() http.Handler {
 			}
 			return ci
 		},
+	}
+	if s.logStore != nil {
+		opt.CollectLogs = s.collectLogs
+		opt.OnlineSources = s.onlineLogSources
 	}
 	if s.groups != nil {
 		opt.Groups = func() (int, bool) {
@@ -529,6 +534,9 @@ func (s *Server) authenticate(conn *websocket.Conn) (*hub.Peer, error) {
 	_ = conn.SetWriteDeadline(time.Time{})
 
 	peer := hub.NewPeer(authPayload.PublicKey, authPayload.NickTag, conn)
+	if protocol.ValidAppVersion(authPayload.AppVersion) {
+		peer.AppVersion = authPayload.AppVersion
+	}
 	// Политика видимости статуса — до hub.Register: рассылка peer_online
 	// идёт уже по ней.
 	if authPayload.Presence != nil {
@@ -672,6 +680,46 @@ func (s *Server) handleMessage(peer *hub.Peer, msg *protocol.Message) {
 	}
 }
 
+// serverLogSource — источник, под которым сохраняется собственный лог сигналки.
+const serverLogSource = "signal-server"
+
+// collectLogs просит клиентов этого узла прислать логи (log_request) и
+// сохраняет собственный лог сигналки. targets пуст — все онлайн-клиенты;
+// иначе — клиенты, у которых совпал nick#tag (как есть или в виде имени
+// источника логов) или публичный ключ (hex); "signal-server" в списке — только
+// собственный лог. Возвращает, скольким клиентам ушёл запрос.
+// Общий код debug /collect и admin POST /admin/v1/logs/collect.
+func (s *Server) collectLogs(targets []string) int {
+	want := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		want[t] = true
+	}
+	if s.logFile != "" && (len(targets) == 0 || want[serverLogSource]) {
+		if err := s.logStore.SaveFromFile(serverLogSource, s.logFile); err != nil {
+			s.log.Warn("не удалось сохранить лог сигналки", slog.String("error", err.Error()))
+		}
+	}
+	msg, _ := json.Marshal(protocol.Message{Type: protocol.TypeLogRequest})
+	return s.hub.SendWhere(func(p *hub.Peer) bool {
+		if len(targets) == 0 {
+			return true
+		}
+		nt := p.NickTag()
+		return want[nt] || want[logstore.SourceName(nt)] || want[p.PublicKey]
+	}, msg)
+}
+
+// onlineLogSources — имена источников логов (logstore.SourceName от nick#tag)
+// клиентов, подключённых к этому узлу.
+func (s *Server) onlineLogSources() map[string]bool {
+	peers := s.hub.PeerList()
+	out := make(map[string]bool, len(peers))
+	for _, p := range peers {
+		out[logstore.SourceName(p.NickTag)] = true
+	}
+	return out
+}
+
 // StartDebug запускает debug HTTP сервер на отдельном порту. host пуст —
 // 127.0.0.1: порт не должен быть виден снаружи.
 func (s *Server) StartDebug(host string, port int) error {
@@ -683,11 +731,7 @@ func (s *Server) StartDebug(host string, port int) error {
 
 	// --- Collect: запросить логи у всех онлайн-клиентов ---
 	collectHandler := func(w http.ResponseWriter, r *http.Request) {
-		if s.logFile != "" {
-			s.logStore.SaveFromFile("signal-server", s.logFile)
-		}
-		msg, _ := json.Marshal(protocol.Message{Type: protocol.TypeLogRequest})
-		s.hub.SendToAll(msg)
+		s.collectLogs(nil)
 
 		peers := s.hub.PeerList()
 		w.Header().Set("Content-Type", "application/json")

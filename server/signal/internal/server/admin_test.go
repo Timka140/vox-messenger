@@ -78,9 +78,24 @@ func signedReq(h http.Handler, method, uri string, body []byte) *httptest.Respon
 	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	r := httptest.NewRequest(method, uri, bytes.NewReader(body))
 	r.Header.Set("X-NW-Ts", ts)
-	r.Header.Set("X-NW-Sig", admin.Sign(adminTestToken, method, r.URL.RequestURI(), ts, body))
+	sig := admin.Sign(adminTestToken, method, r.URL.RequestURI(), ts, body)
+	r.Header.Set("X-NW-Sig", sig)
+	r.Header.Set("X-NW-Enc", "1")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
+	// Ответ после проверки подписи зашифрован — расшифровываем на месте.
+	if w.Header().Get("X-NW-Enc") == "1" {
+		pr, err := admin.OpenResponse(adminTestToken, sig, bytes.NewReader(w.Body.Bytes()))
+		var plain []byte
+		if err == nil {
+			plain, err = io.ReadAll(pr)
+		}
+		if err != nil {
+			w.Code = 599
+			plain = []byte("DECRYPT FAILED: " + err.Error())
+		}
+		w.Body = bytes.NewBuffer(plain)
+	}
 	return w
 }
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
@@ -639,12 +640,17 @@ type sourceResp struct {
 	Warns    int                 `json:"warns"`
 	Version  string              `json:"version,omitempty"`
 	OS       string              `json:"os,omitempty"`
+	Online   *bool               `json:"online,omitempty"`
 }
 
 func (a *API) handleLogSources(w http.ResponseWriter, r *http.Request) {
 	if a.opt.Logs == nil {
 		writeErr(w, http.StatusServiceUnavailable, "logs not configured")
 		return
+	}
+	var online map[string]bool
+	if a.opt.OnlineSources != nil {
+		online = a.opt.OnlineSources()
 	}
 	out := []sourceResp{}
 	for _, si := range a.opt.Logs.ListSources() {
@@ -653,6 +659,10 @@ func (a *API) handleLogSources(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		sr := sourceResp{Name: si.Name, Files: files}
+		if a.opt.OnlineSources != nil {
+			on := online[si.Name]
+			sr.Online = &on
+		}
 		if !si.LastPushAt.IsZero() {
 			sr.LastSeen = si.LastPushAt.UTC().Format(time.RFC3339)
 		}
@@ -667,6 +677,51 @@ func (a *API) handleLogSources(w http.ResponseWriter, r *http.Request) {
 		out = append(out, sr)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"sources": out})
+}
+
+const (
+	maxCollectSources   = 200
+	maxCollectSourceLen = 100
+)
+
+// handleLogsCollect — попросить клиентов узла прислать логи. Тело
+// необязательное: {"sources":["nick#tag",…]}; пусто — все онлайн-клиенты.
+func (a *API) handleLogsCollect(w http.ResponseWriter, r *http.Request) {
+	if a.opt.CollectLogs == nil {
+		writeErr(w, http.StatusServiceUnavailable, "logs not configured")
+		return
+	}
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "read body")
+		return
+	}
+	var req struct {
+		Sources []string `json:"sources"`
+	}
+	if len(bytes.TrimSpace(raw)) > 0 {
+		if err := json.Unmarshal(raw, &req); err != nil {
+			writeErr(w, http.StatusBadRequest, "bad request")
+			return
+		}
+	}
+	if len(req.Sources) > maxCollectSources {
+		writeErr(w, http.StatusBadRequest, "too many sources")
+		return
+	}
+	for _, s := range req.Sources {
+		if s == "" || len(s) > maxCollectSourceLen {
+			writeErr(w, http.StatusBadRequest, "bad source")
+			return
+		}
+	}
+	var targets []string
+	if len(req.Sources) > 0 {
+		targets = req.Sources
+	}
+	sent := a.opt.CollectLogs(targets)
+	a.log.Info("запрошены логи клиентов через admin API", slog.Int("sent", sent), slog.Int("targets", len(targets)))
+	writeJSON(w, http.StatusOK, map[string]int{"sent": sent})
 }
 
 // fileStats — счётчики текущего файла источника (из кеша, если файл не менялся).

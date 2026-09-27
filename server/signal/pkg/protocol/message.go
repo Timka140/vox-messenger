@@ -1,12 +1,15 @@
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"regexp"
+)
 
 // Типы сообщений между клиентом и сигнальным сервером
 const (
 	// Аутентификация
-	TypeChallenge = "challenge" // сервер → клиент: challenge для подписи
-	TypeAuth      = "auth"      // клиент → сервер: подпись challenge + publicKey + nick#tag
+	TypeChallenge  = "challenge"   // сервер → клиент: challenge для подписи
+	TypeAuth       = "auth"        // клиент → сервер: подпись challenge + publicKey + nick#tag
 	TypeAuthOK     = "auth_ok"     // сервер → клиент: аутентификация успешна
 	TypeICEServers = "ice_servers" // сервер → клиент: ICE/TURN конфигурация
 	TypeServerList = "server_list" // сервер → клиент: все узлы кластера (после ice_servers)
@@ -18,10 +21,10 @@ const (
 	TypeICE    = "ice"    // клиент → сервер → клиент: ICE candidate
 
 	// Пиры
-	TypePeerSearch = "peer_search" // клиент → сервер: поиск пиров по нику
-	TypePeerResult = "peer_result" // сервер → клиент: результаты поиска
-	TypePeerOnline = "peer_online" // сервер → клиент: пир появился онлайн
-	TypePeerOffline = "peer_offline" // сервер → клиент: пир ушёл офлайн
+	TypePeerSearch    = "peer_search"     // клиент → сервер: поиск пиров по нику
+	TypePeerResult    = "peer_result"     // сервер → клиент: результаты поиска
+	TypePeerOnline    = "peer_online"     // сервер → клиент: пир появился онлайн
+	TypePeerOffline   = "peer_offline"    // сервер → клиент: пир ушёл офлайн
 	TypeUpdateNickTag = "update_nick_tag" // клиент → сервер: обновить nick_tag без реконнекта
 	TypePresenceWatch = "presence_watch"  // клиент → сервер: кому виден мой статус «в сети» (полная замена списка)
 
@@ -45,16 +48,16 @@ const (
 	TypeLogRequest = "log_request" // сервер → клиент: пришли логи
 
 	// Групповой server relay (для групп >50 участников)
-	TypeGroupRegister      = "group_register"        // клиент → сервер: регистрирует группу в server registry
-	TypeGroupRegisterOK    = "group_register_ok"     // сервер → клиент: ack создания + текущий seq
-	TypeGroupMemberAdd     = "group_member_add"      // админ → сервер: добавить участника
-	TypeGroupMemberRemove  = "group_member_remove"   // админ → сервер: удалить участника
-	TypeGroupMessageSend   = "group_message_send"    // клиент → сервер: отправить сообщение в группу
-	TypeGroupMessageNew    = "group_message_new"     // сервер → клиент: новое сообщение (fan-out)
-	TypeGroupSync          = "group_sync"            // клиент → сервер: sync since last seq
-	TypeGroupSyncResult    = "group_sync_result"     // сервер → клиент: пропущенные сообщения
-	TypeGroupDeliveryMode  = "group_delivery_mode"   // сервер → клиент: режим доставки изменён
-	TypeGroupSyncHint      = "group_sync_hint"       // сервер → клиент: узел догнал сообщения группы, сделай group_sync
+	TypeGroupRegister     = "group_register"      // клиент → сервер: регистрирует группу в server registry
+	TypeGroupRegisterOK   = "group_register_ok"   // сервер → клиент: ack создания + текущий seq
+	TypeGroupMemberAdd    = "group_member_add"    // админ → сервер: добавить участника
+	TypeGroupMemberRemove = "group_member_remove" // админ → сервер: удалить участника
+	TypeGroupMessageSend  = "group_message_send"  // клиент → сервер: отправить сообщение в группу
+	TypeGroupMessageNew   = "group_message_new"   // сервер → клиент: новое сообщение (fan-out)
+	TypeGroupSync         = "group_sync"          // клиент → сервер: sync since last seq
+	TypeGroupSyncResult   = "group_sync_result"   // сервер → клиент: пропущенные сообщения
+	TypeGroupDeliveryMode = "group_delivery_mode" // сервер → клиент: режим доставки изменён
+	TypeGroupSyncHint     = "group_sync_hint"     // сервер → клиент: узел догнал сообщения группы, сделай group_sync
 
 	// Кластер: узел ↔ узел по тому же WS-порту (docs/cluster-contract.md).
 	// Принимающий узел шлёт обычный challenge; инициатор отвечает node_auth.
@@ -79,7 +82,7 @@ const (
 type Message struct {
 	Type    string          `json:"type"`
 	To      string          `json:"to,omitempty"`      // publicKey получателя (для offer/answer/ice)
-	From    string          `json:"from,omitempty"`     // publicKey отправителя (заполняется сервером)
+	From    string          `json:"from,omitempty"`    // publicKey отправителя (заполняется сервером)
 	Payload json.RawMessage `json:"payload,omitempty"` // содержимое зависит от type
 	// PcId — discriminator транспорта между двумя PeerConnection'ами одного пира.
 	// 0 = media (voice + messages), 1 = files (attachments). Используется только
@@ -107,6 +110,17 @@ type AuthPayload struct {
 	// RedirectOK — клиент понимает redirect вместо auth_ok. Старому клиенту
 	// перегруженный узел redirect не шлёт.
 	RedirectOK bool `json:"redirect_ok,omitempty"`
+	// AppVersion — версия приложения клиента ("v0.00.000.0082"), для
+	// статистики версий в admin API. Необязательное: не проходит
+	// ValidAppVersion — игнорируется, старые клиенты его не шлют.
+	AppVersion string `json:"app_version,omitempty"`
+}
+
+var appVersionRe = regexp.MustCompile(`^v\d+\.\d{2}\.\d{3}\.\d{4}$`)
+
+// ValidAppVersion — формат версии приложения: ≤ 32 символов, vN.NN.NNN.NNNN.
+func ValidAppVersion(s string) bool {
+	return len(s) <= 32 && appVersionRe.MatchString(s)
 }
 
 // ServerNode — узел кластера в формате клиента: addr "host:port".
@@ -192,6 +206,9 @@ type LatestReleaseInfo struct {
 	Version   string `json:"version"`   // например "v0.00.000.0001"
 	Force     bool   `json:"force"`     // принудительное обновление — UI заблокирован
 	Changelog string `json:"changelog"` // краткое описание изменений
+	// Revoked — отозванные версии: клиент на такой версии ставит Version,
+	// даже если она старше его собственной (откат из админки).
+	Revoked []string `json:"revoked,omitempty"`
 }
 
 // ICEServerConfig — один ICE-сервер
@@ -229,11 +246,11 @@ type LogPushPayload struct {
 
 // Коды ошибок
 const (
-	ErrAuthFailed    = "auth_failed"
-	ErrPeerNotFound  = "peer_not_found"
-	ErrPeerOffline   = "peer_offline_err"
-	ErrInvalidMsg    = "invalid_message"
-	ErrNotAuthed     = "not_authenticated"
+	ErrAuthFailed   = "auth_failed"
+	ErrPeerNotFound = "peer_not_found"
+	ErrPeerOffline  = "peer_offline_err"
+	ErrInvalidMsg   = "invalid_message"
+	ErrNotAuthed    = "not_authenticated"
 	// ErrSessionReplaced — тот же ключ подключился к другому узлу кластера
 	// позже; эта сессия закрывается.
 	ErrSessionReplaced = "session_replaced"
@@ -255,15 +272,15 @@ const (
 // GroupRegisterPayload — клиент регистрирует группу на сервере.
 // Используется при создании группы >50 или при миграции с P2P.
 type GroupRegisterPayload struct {
-	GroupID string   `json:"group_id"`        // UUID группы (совпадает с клиентским)
-	Members []string `json:"members"`         // список publicKey участников
-	Admins  []string `json:"admins"`          // список publicKey админов (подмножество Members)
+	GroupID string   `json:"group_id"` // UUID группы (совпадает с клиентским)
+	Members []string `json:"members"`  // список publicKey участников
+	Admins  []string `json:"admins"`   // список publicKey админов (подмножество Members)
 }
 
 // GroupRegisterOKPayload — ответ на group_register.
 type GroupRegisterOKPayload struct {
 	GroupID     string `json:"group_id"`
-	CurrentSeq  int64  `json:"current_seq"`   // последний seq в группе (0 для новой)
+	CurrentSeq  int64  `json:"current_seq"` // последний seq в группе (0 для новой)
 	MemberCount int    `json:"member_count"`
 }
 
@@ -277,22 +294,22 @@ type GroupMemberChangePayload struct {
 // GroupMessageSendPayload — клиент отправляет сообщение в группу.
 type GroupMessageSendPayload struct {
 	GroupID     string `json:"group_id"`
-	ClientMsgID string `json:"client_msg_id"`    // UUID от клиента, для дедупликации
-	Payload     string `json:"payload"`          // plaintext или зашифрованный блоб (base64 или plain)
-	Encrypted   bool   `json:"encrypted"`        // true если payload зашифрован e2e
-	ClientTsMs  int64  `json:"client_ts_ms"`     // клиентский timestamp (UTC ms)
+	ClientMsgID string `json:"client_msg_id"` // UUID от клиента, для дедупликации
+	Payload     string `json:"payload"`       // plaintext или зашифрованный блоб (base64 или plain)
+	Encrypted   bool   `json:"encrypted"`     // true если payload зашифрован e2e
+	ClientTsMs  int64  `json:"client_ts_ms"`  // клиентский timestamp (UTC ms)
 }
 
 // GroupMessageNewPayload — fan-out нового сообщения от сервера.
 type GroupMessageNewPayload struct {
 	GroupID     string `json:"group_id"`
-	Seq         int64  `json:"seq"`              // монотонный номер в группе (сервер)
-	AuthorKey   string `json:"author_key"`       // publicKey автора
-	ClientMsgID string `json:"client_msg_id"`    // для дедупликации на клиенте
+	Seq         int64  `json:"seq"`           // монотонный номер в группе (сервер)
+	AuthorKey   string `json:"author_key"`    // publicKey автора
+	ClientMsgID string `json:"client_msg_id"` // для дедупликации на клиенте
 	Payload     string `json:"payload"`
 	Encrypted   bool   `json:"encrypted"`
-	ServerTsMs  int64  `json:"server_ts_ms"`     // серверный timestamp приёма (UTC ms)
-	ClientTsMs  int64  `json:"client_ts_ms"`     // клиентский timestamp (с поправкой если >5min drift)
+	ServerTsMs  int64  `json:"server_ts_ms"` // серверный timestamp приёма (UTC ms)
+	ClientTsMs  int64  `json:"client_ts_ms"` // клиентский timestamp (с поправкой если >5min drift)
 	// OriginNode — узел, чей журнал выдал seq (seq уникален в паре группа + узел).
 	OriginNode string `json:"origin_node,omitempty"`
 }
@@ -310,9 +327,9 @@ type GroupSyncPayload struct {
 
 // GroupSyncResultPayload — ответ на group_sync.
 type GroupSyncResultPayload struct {
-	GroupID  string                    `json:"group_id"`
-	Messages []GroupMessageNewPayload  `json:"messages"`
-	HasMore  bool                      `json:"has_more"`             // true если есть ещё за пределами limit
+	GroupID  string                   `json:"group_id"`
+	Messages []GroupMessageNewPayload `json:"messages"`
+	HasMore  bool                     `json:"has_more"` // true если есть ещё за пределами limit
 }
 
 // GroupDeliveryModePayload — уведомление об изменении режима доставки группы.

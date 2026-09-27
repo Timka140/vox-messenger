@@ -65,7 +65,7 @@ func Sign(token, method, requestURI, ts string, body []byte) string {
 }
 
 // auth — проверка X-NW-Ts / X-NW-Sig; тело читается целиком (≤ 4 МБ) и
-// подкладывается обратно для обработчика.
+// подкладывается обратно для обработчика, ответ обработчика шифруется.
 func (a *API) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tsStr := r.Header.Get("X-NW-Ts")
@@ -114,8 +114,24 @@ func (a *API) auth(next http.Handler) http.Handler {
 			return
 		}
 
+		// После проверки подписи открытым текстом не уходит ничего: запрос
+		// без X-NW-Enc: 1 отвергается, остальные ответы шифруются (seal.go).
+		if r.Header.Get(encHeader) != "1" {
+			writeErr(w, http.StatusBadRequest, "encryption required")
+			return
+		}
+		fs, err := newFrameSealer(w, a.key, hex.EncodeToString(got), a.nonce)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		sw := &sealWriter{rw: w, fs: fs}
+
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		r.ContentLength = int64(len(body))
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(sw, r)
+		if err := sw.finish(); err != nil {
+			a.log.Debug("ответ прерван", "error", err.Error())
+		}
 	})
 }

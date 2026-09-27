@@ -1,6 +1,6 @@
 // Package admin — admin API узла /admin/v1/* для шлюза northwindcdn.com/admin.
 // Контракт — design/northwind-site/ADMIN-CONTRACT.md §1: запросы подписаны
-// HMAC-SHA256 общим ADMIN_TOKEN, ответы JSON.
+// HMAC-SHA256 общим ADMIN_TOKEN, ответы JSON в потоке кадров AES-256-GCM (seal.go).
 package admin
 
 import (
@@ -49,6 +49,15 @@ type Options struct {
 	ReleasePubKey ed25519.PublicKey // nil — PUT /releases отвечает 503
 	NodeID        string
 	Clients       func() int
+	// ClientVersions — онлайн-клиенты по версии приложения из auth
+	// ("unknown" — не прислали).
+	ClientVersions func() map[string]int
+	// CollectLogs — разослать log_request (nil — все онлайн-клиенты узла),
+	// вернуть число клиентов, кому ушёл запрос. nil — POST /logs/collect 503.
+	CollectLogs func(sources []string) int
+	// OnlineSources — имена источников логов, чьи клиенты сейчас подключены
+	// к узлу. nil — поле online в /logs/sources опускается.
+	OnlineSources func() map[string]bool
 	Cluster       func() ClusterInfo
 	Groups        func() (int, bool)
 	Releases      *releases.Store
@@ -61,6 +70,8 @@ type Options struct {
 type API struct {
 	opt    Options
 	token  []byte
+	key    []byte    // ключ шифрования ответов (seal.go)
+	nonce  io.Reader // источник nonce; nil — crypto/rand (тесты подменяют)
 	replay *replayCache
 	log    *slog.Logger
 
@@ -74,9 +85,15 @@ func New(opt Options) *API {
 	if log == nil {
 		log = slog.Default()
 	}
+	key, err := responseKey([]byte(opt.Token))
+	if err != nil {
+		// HKDF-SHA256 на 32 байта не ошибается; на всякий случай — не молча.
+		panic("admin: response key: " + err.Error())
+	}
 	return &API{
 		opt:    opt,
 		token:  []byte(opt.Token),
+		key:    key,
 		replay: &replayCache{seen: make(map[string]time.Time)},
 		log:    log.With(slog.String("component", "admin")),
 		stats:  make(map[string]fileStats),
@@ -97,6 +114,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/v1/releases", a.handleReleasesGet)
 	mux.HandleFunc("PUT /admin/v1/releases", a.handleReleasesPut)
 	mux.HandleFunc("GET /admin/v1/logs/sources", a.handleLogSources)
+	mux.HandleFunc("POST /admin/v1/logs/collect", a.handleLogsCollect)
 	mux.HandleFunc("GET /admin/v1/logs/{source}", a.handleLogs)
 	mux.HandleFunc("GET /admin/v1/logs/{source}/download", a.handleLogsDownload)
 	mux.HandleFunc("/admin/v1/", func(w http.ResponseWriter, r *http.Request) {
@@ -166,15 +184,16 @@ type statusGo struct {
 }
 
 type statusResp struct {
-	NodeID        string          `json:"node_id,omitempty"`
-	Version       string          `json:"version,omitempty"`
-	StartedAt     string          `json:"started_at"`
-	ClientsOnline *int            `json:"clients_online,omitempty"`
-	Cluster       *ClusterInfo    `json:"cluster,omitempty"`
-	Groups        *int            `json:"groups,omitempty"`
-	Releases      *statusReleases `json:"releases,omitempty"`
-	LogSources    *int            `json:"log_sources,omitempty"`
-	Go            statusGo        `json:"go"`
+	NodeID         string          `json:"node_id,omitempty"`
+	Version        string          `json:"version,omitempty"`
+	StartedAt      string          `json:"started_at"`
+	ClientsOnline  *int            `json:"clients_online,omitempty"`
+	ClientVersions *map[string]int `json:"client_versions,omitempty"`
+	Cluster        *ClusterInfo    `json:"cluster,omitempty"`
+	Groups         *int            `json:"groups,omitempty"`
+	Releases       *statusReleases `json:"releases,omitempty"`
+	LogSources     *int            `json:"log_sources,omitempty"`
+	Go             statusGo        `json:"go"`
 }
 
 func (a *API) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +205,13 @@ func (a *API) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if a.opt.Clients != nil {
 		n := a.opt.Clients()
 		resp.ClientsOnline = &n
+	}
+	if a.opt.ClientVersions != nil {
+		v := a.opt.ClientVersions()
+		if v == nil {
+			v = map[string]int{}
+		}
+		resp.ClientVersions = &v
 	}
 	if a.opt.Cluster != nil {
 		c := a.opt.Cluster()
