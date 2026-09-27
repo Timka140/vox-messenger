@@ -64,6 +64,7 @@ type Options struct {
 	Logs          *logstore.Store
 	Log           *slog.Logger
 	Now           func() time.Time // для тестов; nil — time.Now
+	Started       time.Time        // для тестов; ноль — момент New
 }
 
 // API — обработчики /admin/v1/*.
@@ -74,6 +75,9 @@ type API struct {
 	nonce  io.Reader // источник nonce; nil — crypto/rand (тесты подменяют)
 	replay *replayCache
 	log    *slog.Logger
+	// started — запуск процесса: кеш повторов живёт в памяти, поэтому подписи
+	// старше него отвергаются — после рестарта их не с чем сверить.
+	started time.Time
 
 	statsMu sync.Mutex
 	stats   map[string]fileStats // путь файла → счётчики (по mtime+size)
@@ -90,7 +94,7 @@ func New(opt Options) *API {
 		// HKDF-SHA256 на 32 байта не ошибается; на всякий случай — не молча.
 		panic("admin: response key: " + err.Error())
 	}
-	return &API{
+	a := &API{
 		opt:    opt,
 		token:  []byte(opt.Token),
 		key:    key,
@@ -98,6 +102,11 @@ func New(opt Options) *API {
 		log:    log.With(slog.String("component", "admin")),
 		stats:  make(map[string]fileStats),
 	}
+	a.started = opt.Started
+	if a.started.IsZero() {
+		a.started = a.now()
+	}
+	return a
 }
 
 func (a *API) now() time.Time {

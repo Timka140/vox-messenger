@@ -18,7 +18,6 @@ type IdentityService struct {
 	store   *storage.Storage
 	dataDir string
 	network *NetworkService
-	emit    func(string, any)
 	quit    func() // завершение процесса после перезапуска (SetQuit)
 }
 

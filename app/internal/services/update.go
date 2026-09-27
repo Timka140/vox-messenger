@@ -93,6 +93,8 @@ type CheckResult struct {
 	Force                bool   `json:"force"`
 	SupportedForPlatform bool   `json:"supported_for_platform"`
 	Message              string `json:"message"`
+	// Revoked — текущая версия отозвана, Latest может быть старше (откат).
+	Revoked bool `json:"revoked"`
 }
 
 // DownloadResult — результат скачивания + верификации.
@@ -201,15 +203,33 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 		return
 	}
 
+	// auth_ok не подписан (ws:// без TLS) — это только повод сходить за
+	// подписанным манифестом. Решение (версия, force, откат, есть ли сборка
+	// под эту платформу) принимается по манифесту, иначе подложный revoked
+	// откатил бы клиента, а force без сборки под платформу запер бы UI.
 	revoked := info.Version != s.currentRaw && slices.Contains(info.Revoked, s.currentRaw)
 	if fn != nil && (s.isNewerVersion(info.Version) || revoked) {
-		fn("vox:update-available", map[string]any{
-			"version":   info.Version,
-			"force":     info.Force || revoked,
-			"changelog": info.Changelog,
-			"revoked":   revoked,
-		})
+		go s.confirmAndEmit(fn)
 	}
+}
+
+// confirmAndEmit сверяет подсказку auth_ok с подписанным манифестом и
+// сообщает фронту только о подтверждённом обновлении.
+func (s *UpdateService) confirmAndEmit(fn func(string, any)) {
+	res, err := s.CheckForUpdates()
+	if err != nil {
+		s.log.Warn("update: манифест для auth_ok не получен", slog.String("error", err.Error()))
+		return
+	}
+	if !res.Available || !res.SupportedForPlatform {
+		return
+	}
+	fn("vox:update-available", map[string]any{
+		"version":   res.Latest,
+		"force":     res.Force,
+		"changelog": res.Changelog,
+		"revoked":   res.Revoked,
+	})
 }
 
 // --- Wails methods ---
@@ -236,8 +256,13 @@ func (s *UpdateService) CheckForUpdates() (*CheckResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.checkManifest(m), nil
+}
+
+// checkManifest сравнивает (уже проверенный) манифест с текущей версией.
+func (s *UpdateService) checkManifest(m *Manifest) *CheckResult {
 	if m.Latest == "" || len(m.Releases) == 0 {
-		return &CheckResult{Available: false, Current: s.currentRaw}, nil
+		return &CheckResult{Available: false, Current: s.currentRaw}
 	}
 
 	var latestEntry *ManifestReleaseEntry
@@ -248,7 +273,7 @@ func (s *UpdateService) CheckForUpdates() (*CheckResult, error) {
 		}
 	}
 	if latestEntry == nil {
-		return &CheckResult{Available: false, Current: s.currentRaw}, nil
+		return &CheckResult{Available: false, Current: s.currentRaw}
 	}
 
 	// Текущая версия отозвана — ставим latest, даже если он старше (откат).
@@ -259,6 +284,7 @@ func (s *UpdateService) CheckForUpdates() (*CheckResult, error) {
 		Changelog: latestEntry.Changelog,
 		Force:     latestEntry.Force || revoked,
 		Available: s.isNewerVersion(latestEntry.Version) || revoked,
+		Revoked:   revoked,
 	}
 
 	platformKey := runtime.GOOS + "-" + runtime.GOARCH
@@ -268,7 +294,7 @@ func (s *UpdateService) CheckForUpdates() (*CheckResult, error) {
 		result.SupportedForPlatform = false
 		result.Message = "Нет сборки для " + platformKey
 	}
-	return result, nil
+	return result
 }
 
 // DownloadUpdate скачивает все файлы указанной версии для текущей платформы,
@@ -296,6 +322,11 @@ func (s *UpdateService) DownloadUpdate(ver string) (*DownloadResult, error) {
 	}
 	if entry == nil {
 		return nil, fmt.Errorf("version %s not in manifest", ver)
+	}
+	// Старшую версию ставим только как откат с отозванной текущей — и только
+	// ту, что манифест назначил latest.
+	if !s.isNewerVersion(ver) && !(ver == m.Latest && s.isRevokedCurrent(m)) {
+		return nil, fmt.Errorf("version %s is not an update for %s", ver, s.currentRaw)
 	}
 
 	platformKey := runtime.GOOS + "-" + runtime.GOARCH

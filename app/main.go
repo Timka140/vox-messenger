@@ -151,6 +151,9 @@ func main() {
 		logger.Error("подмена базы после создания профиля не удалась", slog.String("error", err.Error()))
 	case swap == storage.SwapApplied:
 		logger.Info("база перешифрована ключом из секретной фразы")
+		// Восстановление фразой уносит копию .bak в подменённую базу —
+		// сам .bak больше не нужен (при новом профиле его уже нет).
+		removeDBFiles(filepath.Join(dataDir, "vox.db.bak"))
 	case swap == storage.SwapResumed:
 		logger.Warn("прерванная подмена базы доведена до конца")
 	case swap == storage.SwapPartial:
@@ -214,8 +217,19 @@ func main() {
 	// .bak лежит, пока пользователь не решил его судьбу (восстановить фразой или
 	// удалить): после перезапуска свежая база открывается, но экран — всё равно
 	// восстановление, иначе создание профиля упрётся в phrase_mismatch.
+	// Только если в открытой базе нет профиля: рабочий профиль рядом с
+	// забытым .bak не прячем за экраном восстановления — оттуда «новый
+	// профиль» перезаписал бы его ключ.
 	if _, bakErr := os.Stat(bakPath); bakErr == nil {
-		recoveryMode = true
+		var n int
+		if err := store.DB().QueryRow("SELECT COUNT(*) FROM identity").Scan(&n); err != nil {
+			log.Fatal("Storage error (проверка профиля): ", err)
+		}
+		if n == 0 {
+			recoveryMode = true
+		} else {
+			logger.Warn("рядом с рабочей базой лежит старая .bak, не трогаю", slog.String("backup", bakPath))
+		}
 	}
 
 	// Сессия
@@ -471,9 +485,6 @@ func main() {
 	})
 	// Профиль создан или восстановлен из секретной фразы — новый процесс уже
 	// запущен, он подменит базу при старте.
-	identitySvc.SetEmitter(func(eventName string, data any) {
-		app.Event.Emit(eventName, data)
-	})
 	identitySvc.SetQuit(func() {
 		logger.Info("relaunch after profile setup, quitting for new process")
 		app.Quit()

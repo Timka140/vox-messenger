@@ -267,6 +267,7 @@
   "setup.err.unknown_word": "Word {n} is not in the list. Check the spelling.",
   "setup.err.checksum": "The phrase does not check out: the order or one of the words may be wrong.",
   "setup.err.mixed_lang": "Enter the whole phrase in one language, Russian or English.",
+  "setup.err.profile_exists": "A profile already exists on this device, a new one can't replace it. Restart the app.",
   "setup.err.generic": "Failed:",
   "recovery.title": "Database Key Lost",
   "recovery.desc": "Messages on this computer are encrypted. Enter your secret phrase to bring back the profile and history.",

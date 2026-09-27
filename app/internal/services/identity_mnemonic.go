@@ -31,11 +31,6 @@ type MnemonicPhrase struct {
 	EN string `json:"en"`
 }
 
-// SetEmitter подключает отправку событий во фронт.
-func (s *IdentityService) SetEmitter(fn func(string, any)) {
-	s.emit = fn
-}
-
 // NewMnemonic генерирует секретную фразу для нового профиля. Фраза нигде не
 // сохраняется и не пишется в лог.
 func (s *IdentityService) NewMnemonic() (MnemonicPhrase, error) {
@@ -59,8 +54,9 @@ func (s *IdentityService) NewMnemonic() (MnemonicPhrase, error) {
 // перезапускает приложение. Возвращает peerID профиля.
 //
 // Если на диске есть vox.db.bak (ключ базы был утерян), сначала проверяем,
-// открывает ли её ключ из фразы: да — пишем vox.key, при старте main.go поднимет
-// .bak; нет — ошибка phrase_mismatch, если только discardBackup не просит
+// открывает ли её ключ из фразы: да — копия .bak ложится в vox.db.new, ключ —
+// в vox.key.new, и подмена при старте ставит их на место (как для нового
+// профиля); нет — ошибка phrase_mismatch, если только discardBackup не просит
 // удалить старую историю.
 //
 // Иначе профиль пишется в текущую базу, база копируется в vox.db.new под ключом
@@ -69,6 +65,13 @@ func (s *IdentityService) ApplyMnemonic(phrase string, discardBackup bool) (stri
 	const op = "IdentityService.ApplyMnemonic"
 
 	if s.sess.IsActive() {
+		return "", errors.New(mnemonicErrHasProfile)
+	}
+	// Сессия может быть пуста и при сохранённом профиле (экран создания после
+	// ошибки LoadIdentity): его ключ фразой не восстановить, не перезаписываем.
+	if has, err := s.HasIdentity(); err != nil {
+		return "", fmt.Errorf("%s: %w", op, err)
+	} else if has {
 		return "", errors.New(mnemonicErrHasProfile)
 	}
 	entropy, lang, err := identity.ParseMnemonic(phrase)
@@ -83,7 +86,6 @@ func (s *IdentityService) ApplyMnemonic(phrase string, discardBackup bool) (stri
 
 	dbPath := filepath.Join(s.dataDir, "vox.db")
 	bakPath := dbPath + ".bak"
-	keyPath := filepath.Join(s.dataDir, "vox.key")
 	newDB := filepath.Join(s.dataDir, storage.PendingDBName)
 	newKey := filepath.Join(s.dataDir, storage.PendingKeyName)
 	// Ключ первым: одинокий vox.key.new ApplyPendingRekey считает прерванной
@@ -97,7 +99,23 @@ func (s *IdentityService) ApplyMnemonic(phrase string, discardBackup bool) (stri
 				s.log.Info("фраза не открывает сохранённую базу", slog.String("peer_id", identity.ShortID(pub)))
 				return "", errors.New(mnemonicErrMismatch)
 			}
-			if err := identity.WriteDBKey(keyPath, dbKey); err != nil {
+			// Через подмену, а не одним vox.key: иначе старт сначала
+			// ~15 с пытается открыть пустую vox.db чужим ключом (повторы Open).
+			bak, err := storage.Open(bakPath, dbKey)
+			if err != nil {
+				return "", fmt.Errorf("%s: open backup: %w", op, err)
+			}
+			if err := bak.Checkpoint(); err != nil {
+				s.log.Warn("checkpoint сохранённой базы не удался", slog.String("error", err.Error()))
+			}
+			exportErr := bak.ExportEncrypted(newDB, dbKey)
+			bak.Close()
+			if exportErr != nil {
+				_ = os.Remove(newDB)
+				return "", fmt.Errorf("%s: %w", op, exportErr)
+			}
+			if err := identity.WriteDBKey(newKey, dbKey); err != nil {
+				_ = os.Remove(newDB)
 				return "", fmt.Errorf("%s: %w", op, err)
 			}
 			s.log.Info("ключ базы восстановлен из фразы, перезапуск",

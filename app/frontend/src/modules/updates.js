@@ -231,8 +231,8 @@ export async function checkForUpdates() {
         var res = await svc("CheckForUpdates");
         try { localStorage.setItem(LAST_CHECK_KEY, String(Date.now())); } catch (e) {}
         if (res && res.available && res.supported_for_platform) {
-            // available решил Go; не новее текущей — значит, текущая отозвана (откат).
-            updateState.latest = { version: res.latest, force: res.force, changelog: res.changelog, revoked: !isNewer(res.latest) };
+            // available решил Go по подписанному манифесту, revoked — текущая отозвана (откат).
+            updateState.latest = { version: res.latest, force: res.force, changelog: res.changelog, revoked: !!res.revoked };
             showBanner(updateState.latest);
         }
         return res;

@@ -118,6 +118,7 @@ function mnemonicError(err) {
     if (msg.indexOf("word_count") !== -1) return { text: t("setup.err.word_count") };
     if (msg.indexOf("checksum") !== -1) return { text: t("setup.err.checksum") };
     if (msg.indexOf("mixed_lang") !== -1) return { text: t("setup.err.mixed_lang") };
+    if (msg.indexOf("profile_exists") !== -1) return { text: t("setup.err.profile_exists") };
     return { text: t("setup.err.generic") + " " + msg };
 }
 
