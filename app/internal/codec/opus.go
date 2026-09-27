@@ -4,7 +4,8 @@ package codec
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../../third_party/opus
-#cgo LDFLAGS: -L${SRCDIR}/../../../third_party/opus -lopus -lm
+#cgo !linux LDFLAGS: -L${SRCDIR}/../../../third_party/opus -lopus -lm
+#cgo linux LDFLAGS: -L${SRCDIR}/../../../third_party/opus/linux-amd64 -lopus -lm
 #include <opus.h>
 #include <stdlib.h>
 

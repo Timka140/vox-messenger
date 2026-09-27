@@ -4,6 +4,7 @@ package audio
 
 /*
 #cgo CFLAGS: -std=c11
+#cgo linux CFLAGS: -D_GNU_SOURCE
 #cgo linux LDFLAGS: -lpthread -lm -ldl
 #cgo darwin LDFLAGS: -framework CoreAudio -framework AudioToolbox -framework CoreFoundation
 #cgo windows LDFLAGS: -lole32

@@ -82,8 +82,8 @@ if [ -f "$LIBDF_MANIFEST" ] && command -v cargo >/dev/null 2>&1; then
     # rustc падает с SIGSEGV на кросс-компиляции в windows-gnu (сам rustc
     # в error message предлагает эту переменную).
     RUST_MIN_STACK=33554432 cargo build --release --target x86_64-pc-windows-gnu --manifest-path "$LIBDF_MANIFEST"
-    # echo "--- cargo build native (linux) ---"
-    # cargo build --release --manifest-path "$LIBDF_MANIFEST"
+    echo "--- cargo build native (linux) ---"
+    RUST_MIN_STACK=33554432 cargo build --release --manifest-path "$LIBDF_MANIFEST"
     DFN_TAG="nx_dfn "
 else
     echo "warning: cargo not found or third_party/libdf missing — building without DFN3 support"
@@ -151,23 +151,25 @@ build_platform() {
         echo "warning: Silero VAD model not found at $VAD_MODEL — VAD won't work for users"
     fi
 
-    # onnxruntime.dll (для nx_onnx): Silero VAD грузит её динамически через
-    # SetSharedLibraryPath. Без DLL app стартует, но VAD остаётся в off-state.
-    if [ "$goos" = "windows" ]; then
-        ORT_LIB="$APP_DIR/internal/ml/onnx/lib/windows-amd64/onnxruntime.dll"
-        if [ -f "$ORT_LIB" ]; then
-            cp "$ORT_LIB" "$platdir/"
-            echo "shipped asset: $platdir/onnxruntime.dll"
-        else
-            echo "warning: onnxruntime.dll not found at $ORT_LIB — VAD won't work for Windows users"
-        fi
+    # onnxruntime (для nx_onnx): Silero VAD грузит её динамически через
+    # SetSharedLibraryPath. Без библиотеки app стартует, но VAD остаётся в off-state.
+    local ort_name="libonnxruntime.so"
+    [ "$goos" = "windows" ] && ort_name="onnxruntime.dll"
+    ORT_LIB="$APP_DIR/internal/ml/onnx/lib/$platform/$ort_name"
+    if [ -f "$ORT_LIB" ]; then
+        cp "$ORT_LIB" "$platdir/"
+        echo "shipped asset: $platdir/$ort_name"
+    else
+        echo "warning: $ort_name not found at $ORT_LIB — VAD won't work for $platform users"
     fi
 
     echo "built: $binpath"
 }
 
 build_platform windows amd64 .exe
-# build_platform linux   amd64 ""
+# Linux — нативно (release.sh запускается из WSL): GTK 3 + webkit2gtk-4.1 dev-пакеты,
+# libopus — third_party/opus/linux-amd64/libopus.a. После релиза сайт: publish_release.py.
+build_platform linux   amd64 ""
 
 # shellcheck source=lib/node.sh
 source "$SCRIPT_DIR/lib/node.sh"
