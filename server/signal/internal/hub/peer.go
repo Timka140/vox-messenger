@@ -80,6 +80,9 @@ type Peer struct {
 	// сессия.
 	SessionID     string
 	ConnectedAtMs int64
+	// AppVersion — версия приложения из auth (проверенная); пусто — клиент
+	// её не прислал. Задаётся до Register и дальше не меняется.
+	AppVersion string
 
 	mu       sync.Mutex
 	lastPong time.Time

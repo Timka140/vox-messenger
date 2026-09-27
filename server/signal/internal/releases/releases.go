@@ -41,11 +41,14 @@ type Manifest struct {
 
 // ReleaseEntry — один релиз с платформенными bundles.
 type ReleaseEntry struct {
-	Version    string                    `json:"version"`
-	ReleasedAt time.Time                 `json:"released_at"`
-	Changelog  string                    `json:"changelog"`
-	Force      bool                      `json:"force"`
-	Platforms  map[string]PlatformBundle `json:"platforms"` // ключ: "windows-amd64" и т.п.
+	Version    string    `json:"version"`
+	ReleasedAt time.Time `json:"released_at"`
+	Changelog  string    `json:"changelog"`
+	Force      bool      `json:"force"`
+	// Revoked — версия отозвана: клиенты на ней переходят на latest, даже если
+	// latest старше (откат в админке). Отозвать можно только не-latest.
+	Revoked   bool                      `json:"revoked,omitempty"`
+	Platforms map[string]PlatformBundle `json:"platforms"` // ключ: "windows-amd64" и т.п.
 }
 
 // PlatformBundle — набор файлов релиза для одной платформы.
@@ -191,10 +194,22 @@ func (s *Store) LatestReleaseInfo() *protocol.LatestReleaseInfo {
 				Version:   r.Version,
 				Force:     r.Force,
 				Changelog: r.Changelog,
+				Revoked:   revokedVersions(m),
 			}
 		}
 	}
 	return nil
+}
+
+// revokedVersions — отозванные версии манифеста (для auth_ok).
+func revokedVersions(m *Manifest) []string {
+	var out []string
+	for _, r := range m.Releases {
+		if r.Revoked {
+			out = append(out, r.Version)
+		}
+	}
+	return out
 }
 
 // safeSegment — разрешены буквы/цифры/точки/дефисы/подчёркивания.

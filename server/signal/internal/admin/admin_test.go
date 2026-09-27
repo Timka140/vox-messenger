@@ -29,15 +29,40 @@ func newTestAPI(t *testing.T, opt Options) http.Handler {
 	return New(opt).Handler()
 }
 
-// req — подписанный запрос; ts — смещение от testNow.
+// req — подписанный запрос с X-NW-Enc: 1; ts — смещение от testNow.
+// Зашифрованный ответ расшифровывается: в w.Body — открытый текст, в
+// Content-Type — исходный тип из X-NW-Type.
 func req(h http.Handler, method, uri string, body []byte, skew time.Duration) *httptest.ResponseRecorder {
 	ts := strconv.FormatInt(testNow.Add(skew).UnixMilli(), 10)
 	r := httptest.NewRequest(method, uri, bytes.NewReader(body))
 	r.Header.Set("X-NW-Ts", ts)
-	r.Header.Set("X-NW-Sig", Sign(testToken, method, r.URL.RequestURI(), ts, body))
+	sig := Sign(testToken, method, r.URL.RequestURI(), ts, body)
+	r.Header.Set("X-NW-Sig", sig)
+	r.Header.Set("X-NW-Enc", "1")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
+	openRecorder(w, sig)
 	return w
+}
+
+// openRecorder расшифровывает тело ответа на месте (если оно зашифровано).
+// Ошибка расшифровки — тело "DECRYPT FAILED: …", код 599: тест упадёт на коде.
+func openRecorder(w *httptest.ResponseRecorder, sig string) {
+	if w.Header().Get("X-NW-Enc") != "1" {
+		return
+	}
+	key, _ := responseKey([]byte(testToken))
+	o, err := newFrameOpener(bytes.NewReader(w.Body.Bytes()), key, sig)
+	var plain []byte
+	if err == nil {
+		plain, err = io.ReadAll(o)
+	}
+	if err != nil {
+		w.Code = 599
+		plain = []byte("DECRYPT FAILED: " + err.Error())
+	}
+	w.Body = bytes.NewBuffer(plain)
+	w.Header().Set("Content-Type", w.Header().Get("X-NW-Type"))
 }
 
 func TestAuth(t *testing.T) {
@@ -76,12 +101,15 @@ func TestAuth(t *testing.T) {
 			r.Header.Set("X-NW-Sig", sign("GET", "/admin/v1/status", ok, nil))
 		}, 200},
 		{"query tampered", func(r *http.Request) { r.URL.RawQuery = "x=1"; r.RequestURI = "/admin/v1/status?x=1" }, 401},
+		{"no enc header", func(r *http.Request) { r.Header.Del("X-NW-Enc") }, 400},
+		{"enc header not 1", func(r *http.Request) { r.Header.Set("X-NW-Enc", "0") }, 400},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := httptest.NewRequest("GET", "/admin/v1/status", nil)
 			r.Header.Set("X-NW-Ts", ts)
 			r.Header.Set("X-NW-Sig", sign("GET", "/admin/v1/status", ts, nil))
+			r.Header.Set("X-NW-Enc", "1")
 			c.mutate(r)
 			// свежий API на каждый случай — без влияния кеша повторов
 			h := newTestAPI(t, Options{NodeID: "abc"})
@@ -90,8 +118,24 @@ func TestAuth(t *testing.T) {
 			if w.Code != c.want {
 				t.Fatalf("code %d, want %d: %s", w.Code, c.want, w.Body)
 			}
-			if ct := w.Header().Get("Content-Type"); ct != "application/json" {
-				t.Fatalf("content-type %q", ct)
+			if c.want == 200 {
+				// после проверки подписи — только шифрованный поток
+				if w.Header().Get("X-NW-Enc") != "1" || w.Header().Get("Content-Type") != "application/octet-stream" ||
+					w.Header().Get("X-NW-Type") != "application/json" || w.Header().Get("Content-Length") != "" {
+					t.Fatalf("headers %v", w.Header())
+				}
+				if bytes.Contains(w.Body.Bytes(), []byte("abc")) {
+					t.Fatal("plaintext in encrypted body")
+				}
+				openRecorder(w, r.Header.Get("X-NW-Sig"))
+				if w.Code != 200 || !strings.Contains(w.Body.String(), `"node_id":"abc"`) {
+					t.Fatalf("decrypted %d %s", w.Code, w.Body)
+				}
+				return
+			}
+			// ошибки до проверки подписи — открытый JSON
+			if ct := w.Header().Get("Content-Type"); ct != "application/json" || w.Header().Get("X-NW-Enc") != "" {
+				t.Fatalf("content-type %q enc %q", ct, w.Header().Get("X-NW-Enc"))
 			}
 		})
 	}
@@ -100,6 +144,7 @@ func TestAuth(t *testing.T) {
 		r1 := httptest.NewRequest("GET", "/admin/v1/status", nil)
 		r1.Header.Set("X-NW-Ts", ts)
 		r1.Header.Set("X-NW-Sig", sign("GET", "/admin/v1/status", ts, nil))
+		r1.Header.Set("X-NW-Enc", "1")
 		r2 := r1.Clone(r1.Context())
 		w1, w2 := httptest.NewRecorder(), httptest.NewRecorder()
 		h.ServeHTTP(w1, r1)

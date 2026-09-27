@@ -34,6 +34,9 @@ func (s *Store) Validate(raw []byte) (*Manifest, error) {
 		seen[r.Version] = true
 		if r.Version == m.Latest {
 			found = true
+			if r.Revoked {
+				return nil, fmt.Errorf("%w: latest %q отозвана", ErrInvalid, m.Latest)
+			}
 		}
 		// Откат только на то, что есть на диске.
 		for plat, b := range r.Platforms {
