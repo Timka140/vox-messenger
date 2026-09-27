@@ -132,6 +132,7 @@ type UpdateService struct {
 	publicKey      ed25519.PublicKey
 	getServerBase  func() string
 	emit           func(string, any)
+	quit           func() // завершение после применения/отката (SetQuit)
 
 	mu            sync.RWMutex
 	latestRelease *network.LatestReleaseInfo
@@ -818,12 +819,7 @@ func (s *UpdateService) ApplyUpdate() error {
 	// Clean stage
 	_ = os.RemoveAll(stage)
 
-	s.mu.RLock()
-	fn := s.emit
-	s.mu.RUnlock()
-	if fn != nil {
-		fn("vox:update-applied", map[string]any{"version": prevVersion})
-	}
+	s.quitAfterApply()
 	return nil
 }
 
@@ -849,13 +845,27 @@ func (s *UpdateService) Rollback() error {
 	if err := rollbackUpdatePlatform(s.log, exe, newest, s.currentRaw); err != nil {
 		return err
 	}
+	s.quitAfterApply()
+	return nil
+}
+
+// SetQuit — чем завершить процесс, когда новый уже запущен (main.go: app.Quit).
+func (s *UpdateService) SetQuit(fn func()) {
+	s.mu.Lock()
+	s.quit = fn
+	s.mu.Unlock()
+}
+
+// quitAfterApply завершает процесс прямым вызовом, не событием: app.Event.Emit
+// одновременно с app.Quit взаимно блокируются в Wails v3 alpha (рассылка окнам
+// держит windowsLock и ждёт главный поток, Quit на главном потоке ждёт windowsLock).
+func (s *UpdateService) quitAfterApply() {
 	s.mu.RLock()
-	fn := s.emit
+	fn := s.quit
 	s.mu.RUnlock()
 	if fn != nil {
-		fn("vox:update-applied", map[string]any{"rollback": true})
+		go fn()
 	}
-	return nil
 }
 
 // CleanupOldBackups удаляет stale файлы автообновления при старте приложения.

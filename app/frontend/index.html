@@ -49,66 +49,106 @@
         </div>
     </div>
 
-    <!-- Setup Screen (first launch) -->
+    <!-- Setup Screen: профиль из секретной фразы (первый запуск) -->
     <div id="setup-screen">
         <div class="setup-container">
-            <h1 data-i18n="setup.title">Vox</h1>
-
-            <div class="setup-section">
-                <div class="password-wrap">
-                    <input type="password" id="create-passphrase" placeholder="Secret phrase..." data-i18n-placeholder="setup.create.pass_placeholder" autocomplete="off">
-                    <button type="button" class="password-toggle" data-target="create-passphrase" title="Show/hide" data-i18n-title="setup.new.show_hide">
-                        <i data-lucide="eye" class="icon-18"></i>
-                    </button>
+            <div id="setup-step-welcome" class="setup-step setup-step-center">
+                <h1 data-i18n="setup.title">Vox</h1>
+                <p data-i18n="setup.welcome.desc">Your profile is a key on this computer. It is created from a secret phrase, and the same phrase restores it. No phone number or email needed.</p>
+                <div class="setup-stack">
+                    <button type="button" id="setup-create-btn" class="setup-btn-primary" data-i18n="setup.welcome.create">Create Profile</button>
+                    <button type="button" id="setup-restore-btn" class="setup-btn-secondary" data-i18n="setup.welcome.restore">Restore from Phrase</button>
                 </div>
-                <button id="generate-btn" class="setup-btn-primary" data-i18n="setup.create">Create Account</button>
             </div>
 
-            <a href="#" id="setup-show-import" class="setup-link" data-i18n="setup.have_backup">Have a backup?</a>
-
-            <div id="setup-import-section" class="setup-section" style="display:none;">
-                <div class="password-wrap">
-                    <input type="password" id="import-passphrase" placeholder="Secret phrase..." data-i18n-placeholder="setup.create.pass_placeholder" autocomplete="off">
-                    <button type="button" class="password-toggle" data-target="import-passphrase" title="Show/hide" data-i18n-title="setup.new.show_hide">
-                        <i data-lucide="eye" class="icon-18"></i>
-                    </button>
+            <div id="setup-step-phrase" class="setup-step" hidden>
+                <div>
+                    <h2 data-i18n="setup.phrase.title">Your Secret Phrase</h2>
+                    <p data-i18n="setup.phrase.desc">Write down the 12 words in order and keep them where no one else can see them. Whoever knows the phrase owns the profile.</p>
                 </div>
-                <input type="text" id="import-key-input" placeholder="vox-key://..." data-i18n-placeholder="setup.import.key_placeholder" autocomplete="off" class="mono-input">
-                <button id="import-btn" class="setup-btn-secondary" data-i18n="setup.import.button">Import Key</button>
+                <div id="setup-phrase-grid" class="phrase-grid"></div>
+                <div class="phrase-tools">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="setup-lbl" data-i18n="setup.phrase.words">Words</span>
+                        <div class="setup-seg" role="group">
+                            <button type="button" id="setup-lang-ru" aria-pressed="true">Русские</button>
+                            <button type="button" id="setup-lang-en" aria-pressed="false">English</button>
+                        </div>
+                    </div>
+                    <button type="button" id="setup-phrase-copy" class="setup-small-btn"><i data-lucide="copy" class="icon-14"></i><span id="setup-phrase-copy-label" data-i18n="setup.phrase.copy">Copy</span></button>
+                </div>
+                <div class="setup-note warn"><i data-lucide="alert-triangle" class="icon-16"></i><span data-i18n="setup.phrase.warning">Vox does not store the phrase and cannot show it again. Without the phrase the profile cannot be restored.</span></div>
+                <label class="setup-check"><input type="checkbox" id="setup-phrase-saved"><span data-i18n="setup.phrase.saved">I wrote the phrase down</span></label>
+                <div class="setup-actions">
+                    <button type="button" id="setup-phrase-back" class="setup-btn-secondary" data-i18n="setup.back">Back</button>
+                    <button type="button" id="setup-phrase-next" class="setup-btn-primary" data-i18n="setup.next" disabled>Next</button>
+                </div>
             </div>
 
-            <p id="setup-error" class="error-text"></p>
+            <div id="setup-step-confirm" class="setup-step" hidden>
+                <div>
+                    <h2 data-i18n="setup.confirm.title">Check the Phrase</h2>
+                    <p id="setup-confirm-desc"></p>
+                </div>
+                <div id="setup-confirm-rows" class="confirm-rows"></div>
+                <button type="button" id="setup-confirm-show" class="setup-link"><i data-lucide="eye" class="icon-14"></i><span data-i18n="setup.confirm.show">Show the phrase again</span></button>
+                <p id="setup-confirm-error" class="setup-error"></p>
+                <div class="setup-actions">
+                    <button type="button" id="setup-confirm-back" class="setup-btn-secondary" data-i18n="setup.back">Back</button>
+                    <button type="button" id="setup-confirm-create" class="setup-btn-primary" data-i18n="setup.confirm.create" disabled>Create Profile</button>
+                </div>
+            </div>
+
+            <div id="setup-step-restore" class="setup-step" hidden>
+                <div>
+                    <h2 data-i18n="setup.restore.title">Restore from Phrase</h2>
+                    <p data-i18n="setup.restore.desc">Enter the 12 words of your secret phrase. You can paste the whole phrase at once. Vox recognizes Russian and English words.</p>
+                </div>
+                <div id="setup-restore-grid" class="phrase-grid"></div>
+                <p id="setup-restore-error" class="setup-error"></p>
+                <div class="setup-actions">
+                    <button type="button" id="setup-restore-back" class="setup-btn-secondary" data-i18n="setup.back">Back</button>
+                    <button type="button" id="setup-restore-submit" class="setup-btn-primary" data-i18n="setup.restore.button" disabled>Restore</button>
+                </div>
+            </div>
+
+            <div id="setup-step-creating" class="setup-step setup-step-center" hidden>
+                <div class="setup-spinner"><i data-lucide="loader-circle"></i></div>
+                <h2 data-i18n="setup.creating.title">Creating profile…</h2>
+                <p id="setup-creating-desc" data-i18n="setup.creating.desc">Vox will restart. This takes a few seconds.</p>
+            </div>
         </div>
     </div>
 
-    <!-- Recovery Screen (key lost, DB recreated) -->
+    <!-- Recovery Screen: ключ базы утерян, восстановление по фразе -->
     <div id="recovery-screen" style="display:none;">
         <div class="setup-container">
-            <h1 data-i18n="setup.title">Vox</h1>
-
-            <div class="recovery-warning">
-                <i data-lucide="alert-triangle" class="icon-24"></i>
-                <h3 data-i18n="recovery.title">Key Lost</h3>
-                <p data-i18n="recovery.desc">Your data is encrypted and inaccessible. Restore your identity from backup or create a new account.</p>
-            </div>
-
-            <div class="setup-section">
-                <div class="password-wrap">
-                    <input type="password" id="recovery-passphrase" placeholder="Secret phrase..." data-i18n-placeholder="setup.create.pass_placeholder" autocomplete="off">
-                    <button type="button" class="password-toggle" data-target="recovery-passphrase" title="Show/hide" data-i18n-title="setup.new.show_hide">
-                        <i data-lucide="eye" class="icon-18"></i>
-                    </button>
+            <div id="recovery-step-phrase" class="setup-step">
+                <div class="recovery-warning">
+                    <i data-lucide="alert-triangle" class="icon-24"></i>
+                    <h2 data-i18n="recovery.title">Database Key Lost</h2>
+                    <p data-i18n="recovery.desc">Messages on this computer are encrypted. Enter your secret phrase to bring back the profile and history.</p>
                 </div>
-                <input type="text" id="recovery-key-input" placeholder="vox-key://..." data-i18n-placeholder="setup.import.key_placeholder" autocomplete="off" class="mono-input">
-                <button id="recovery-restore-btn" class="setup-btn-primary" data-i18n="recovery.restore">Restore</button>
+                <div id="recovery-grid" class="phrase-grid"></div>
+                <p id="recovery-error" class="setup-error"></p>
+                <button type="button" id="recovery-restore-btn" class="setup-btn-primary" data-i18n="recovery.restore" disabled>Restore</button>
+                <div class="setup-divider"><span data-i18n="recovery.or">or</span></div>
+                <button type="button" id="recovery-fresh-btn" class="setup-btn-secondary" data-i18n="recovery.fresh">Create New Profile</button>
+                <p class="setup-hint" data-i18n="recovery.fresh_hint">The old history on this computer will be deleted.</p>
             </div>
 
-            <div class="setup-divider"><span data-i18n="recovery.or">or</span></div>
-
-            <p class="setup-hint" data-i18n="recovery.forgot">Forgot password?</p>
-            <button id="recovery-fresh-btn" class="setup-btn-secondary" data-i18n="recovery.fresh">Create New Account</button>
-
-            <p id="recovery-error" class="error-text"></p>
+            <div id="recovery-step-mismatch" class="setup-step" hidden>
+                <div class="recovery-warning">
+                    <i data-lucide="alert-triangle" class="icon-24"></i>
+                    <h2 data-i18n="recovery.title">Database Key Lost</h2>
+                </div>
+                <div class="setup-note err"><i data-lucide="x-circle" class="icon-16"></i><span data-i18n="recovery.mismatch">This phrase does not open the saved history. It may belong to a different profile.</span></div>
+                <div class="setup-stack">
+                    <button type="button" id="recovery-other-btn" class="setup-btn-secondary" data-i18n="recovery.other_phrase">Enter Another Phrase</button>
+                    <button type="button" id="recovery-discard-btn" class="setup-btn-danger" data-i18n="recovery.discard">Start Without Old History</button>
+                </div>
+                <p class="setup-hint" data-i18n="recovery.discard_hint">The profile will be created from this phrase. The old history on this computer will be deleted.</p>
+            </div>
         </div>
     </div>
 
@@ -584,28 +624,8 @@
                     </div>
 
                     <div class="settings-section">
-                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="key-round" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.backup.title">Key backup</div><div class="st-desc" data-i18n="settings.backup.desc">Export your identity key encrypted with a passphrase.</div></div></div>
-                        <div class="st-row">
-                            <div class="st-lbl" data-i18n="settings.backup.passphrase">Passphrase</div>
-                            <div class="password-wrap settings-input st-w360">
-                                <input type="password" id="export-passphrase" placeholder="Passphrase..." data-i18n-placeholder="settings.backup.placeholder" autocomplete="off">
-                                <button type="button" class="password-toggle" data-target="export-passphrase" title="Show/hide" data-i18n-title="settings.backup.show_hide">
-                                    <i data-lucide="eye" class="icon-18"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="st-row">
-                            <div class="st-lbl"></div>
-                            <div class="st-inline">
-                                <button id="export-key-btn" class="settings-save-btn" data-i18n="settings.backup.export">Export</button>
-                            </div>
-                        </div>
-                        <div id="export-result" style="display:none;">
-                            <div class="settings-row st-w-full">
-                                <input type="text" id="export-key-output" readonly class="settings-input mono-input">
-                                <button id="export-copy-btn" class="settings-save-btn st-btn-sec" data-i18n="settings.backup.copy">Copy</button>
-                            </div>
-                        </div>
+                        <div class="st-card-head"><div class="st-card-ico"><i data-lucide="key-round" class="icon-18"></i></div><div><div class="st-h3" data-i18n="settings.phrase.title">Secret phrase</div><div class="st-desc" data-i18n="settings.phrase.desc">Your profile key was created from it. The phrase restores the profile on another computer.</div></div></div>
+                        <div class="setup-note warn"><i data-lucide="shield-alert" class="icon-16"></i><span data-i18n="settings.phrase.note">Vox does not store the phrase and cannot show it again. Keep the 12 words where no one else can see them.</span></div>
                     </div>
 
                     <div class="settings-section">

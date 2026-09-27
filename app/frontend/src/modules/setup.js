@@ -1,7 +1,7 @@
 "use strict";
 
 import { svc, flog, state, dom, showScreen } from "./core.js";
-import { t } from "./i18n.js";
+import { t, getLocale } from "./i18n.js";
 import { refreshPeers } from "./contacts-list.js";
 import { voiceState } from "./voice-state.js";
 import { loadMuted } from "./mute.js";
@@ -83,157 +83,311 @@ async function autoConnect() {
     }
 }
 
-// --- Setup: Create Account ---
-var _creating = false;
-dom.generateBtn.addEventListener("click", async function () {
-    if (_creating) return;
-    var passphrase = document.getElementById("create-passphrase").value.trim();
-    if (!passphrase) {
-        dom.setupError.textContent = t("setup.create.pass_error");
-        document.getElementById("create-passphrase").focus();
-        return;
-    }
-    _creating = true;
-    dom.setupError.textContent = "";
-    try {
-        state.myID = await svc("CreateIdentity", passphrase);
-        voiceState.init(state.myID);
-        // Генерируем backup key и показываем пользователю
-        var backupKey = await svc("ExportKey", passphrase);
-        showChat();
-        autoConnect();
-        // Показываем backup dialog поверх чата (не блокирующий)
-        showBackupDialog(backupKey);
-    } catch (err) {
-        dom.setupError.textContent = "Error: " + (err.message || err);
-    } finally {
-        _creating = false;
-    }
-});
+// --- Секретная фраза: создание и восстановление профиля ---
+// Фраза живёт только в памяти этого модуля и никуда не пишется (ни в лог, ни в state).
 
-// --- Setup: Toggle import section ---
-document.getElementById("setup-show-import").addEventListener("click", function (e) {
-    e.preventDefault();
-    var section = document.getElementById("setup-import-section");
-    section.style.display = section.style.display === "none" ? "block" : "none";
+var WORDS = 12;
+var phrase = null;        // { ru: "...", en: "..." } — сгенерированная фраза
+var phraseLang = "ru";
+var confirmIdx = [];      // номера проверяемых слов (с 0)
+var busy = false;
+
+function $(id) { return document.getElementById(id); }
+
+function showStep(prefix, name) {
+    document.querySelectorAll("[id^='" + prefix + "-step-']").forEach(function (el) {
+        el.hidden = el.id !== prefix + "-step-" + name;
+    });
     if (window.lucide) lucide.createIcons();
-});
+}
 
-// --- Setup: Import ---
-var importBtn = document.getElementById("import-btn");
-var importKeyInput = document.getElementById("import-key-input");
+function normWord(w) {
+    return String(w || "").trim().toLowerCase().replace(/ё/g, "е");
+}
 
-importBtn.addEventListener("click", async function () {
-    var keyStr = importKeyInput.value.trim();
-    var passphrase = document.getElementById("import-passphrase").value.trim();
-    if (!passphrase) {
-        dom.setupError.textContent = t("setup.create.pass_error");
-        return;
+function phraseWords(lang) {
+    return phrase ? phrase[lang].split(" ") : [];
+}
+
+// Текст ошибки по коду из IdentityService.ApplyMnemonic.
+function mnemonicError(err) {
+    var msg = String(err && err.message || err);
+    var m = msg.match(/unknown_word:(\d+)/);
+    if (m) return { text: t("setup.err.unknown_word").replace("{n}", m[1]), word: Number(m[1]) - 1 };
+    if (msg.indexOf("phrase_mismatch") !== -1) return { mismatch: true };
+    if (msg.indexOf("word_count") !== -1) return { text: t("setup.err.word_count") };
+    if (msg.indexOf("checksum") !== -1) return { text: t("setup.err.checksum") };
+    if (msg.indexOf("mixed_lang") !== -1) return { text: t("setup.err.mixed_lang") };
+    return { text: t("setup.err.generic") + " " + msg };
+}
+
+// --- Поля ввода 12 слов (восстановление, «ключ утерян») ---
+function buildInputGrid(grid, onChange) {
+    grid.innerHTML = "";
+    var inputs = [];
+    for (var i = 0; i < WORDS; i++) {
+        var cell = document.createElement("label");
+        cell.className = "phrase-cell";
+        var num = document.createElement("span");
+        num.className = "phrase-num";
+        num.textContent = String(i + 1);
+        var input = document.createElement("input");
+        input.type = "text";
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        input.setAttribute("autocapitalize", "off");
+        input.setAttribute("aria-label", t("setup.confirm.word") + " " + (i + 1));
+        cell.appendChild(num);
+        cell.appendChild(input);
+        grid.appendChild(cell);
+        inputs.push(input);
     }
-    if (!keyStr) {
-        dom.setupError.textContent = t("setup.import.key_error");
-        return;
-    }
-    dom.setupError.textContent = "";
-    try {
-        state.myID = await svc("ImportKey", keyStr, passphrase);
-        voiceState.init(state.myID);
-        showChat();
-        autoConnect();
-    } catch (err) {
-        dom.setupError.textContent = "Import failed: " + (err.message || err);
-    }
-});
-
-importKeyInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") importBtn.click();
-});
-
-// --- Recovery: Restore from backup ---
-var recoveryRestoreBtn = document.getElementById("recovery-restore-btn");
-var recoveryError = document.getElementById("recovery-error");
-
-recoveryRestoreBtn.addEventListener("click", async function () {
-    var passphrase = document.getElementById("recovery-passphrase").value.trim();
-    var keyStr = document.getElementById("recovery-key-input").value.trim();
-    if (!passphrase) {
-        recoveryError.textContent = t("setup.create.pass_error");
-        return;
-    }
-    if (!keyStr) {
-        recoveryError.textContent = t("setup.import.key_error");
-        return;
-    }
-    recoveryError.textContent = "";
-    try {
-        state.myID = await svc("ImportKey", keyStr, passphrase);
-        voiceState.init(state.myID);
-        // Ключ восстановлен. Показываем сообщение о рестарте для восстановления БД.
-        recoveryError.style.color = "var(--green)";
-        recoveryError.textContent = t("recovery.restart");
-    } catch (err) {
-        recoveryError.style.color = "";
-        recoveryError.textContent = "Restore failed: " + (err.message || err);
-    }
-});
-
-// --- Recovery: Create new account ---
-document.getElementById("recovery-fresh-btn").addEventListener("click", async function () {
-    if (_creating) return;
-    _creating = true;
-    recoveryError.textContent = "";
-    try {
-        state.myID = await svc("CreateIdentity", "");
-        voiceState.init(state.myID);
-        showChat();
-        autoConnect();
-    } catch (err) {
-        recoveryError.textContent = "Error: " + err.message;
-    } finally {
-        _creating = false;
-    }
-});
-
-// --- Backup Key Dialog (used from settings export) ---
-export function showBackupDialog(backupKey) {
-    return new Promise(function (resolve) {
-        var overlay = document.createElement("div");
-        overlay.className = "backup-overlay";
-
-        var dialog = document.createElement("div");
-        dialog.className = "backup-dialog";
-        // Каркас диалогов (макет Dialogs): шапка, тело, подвал с кнопками справа.
-        dialog.innerHTML =
-            '<div class="dialog-header"><h3>' + t("setup.backup.title") + '</h3></div>' +
-            '<div class="dialog-body">' +
-            '<p class="backup-warning">' + t("setup.backup.warning") + '</p>' +
-            '<textarea readonly rows="3" class="backup-key-text">' + backupKey + '</textarea>' +
-            '</div>' +
-            '<div class="backup-actions">' +
-            '  <button class="backup-copy-btn">' + t("setup.backup.copy") + '</button>' +
-            '  <button class="backup-done-btn">' + t("setup.backup.done") + '</button>' +
-            '</div>';
-
-        dialog.querySelector(".backup-copy-btn").addEventListener("click", function () {
-            navigator.clipboard.writeText(backupKey);
-            this.textContent = "Copied!";
+    inputs.forEach(function (input, i) {
+        input.addEventListener("input", function () {
+            // Вставка или ввод с пробелом — раскладываем слова по полям дальше.
+            var parts = input.value.split(/\s+/);
+            if (parts.length > 1) {
+                var j = i;
+                parts.forEach(function (p) {
+                    if (!p || j >= WORDS) return;
+                    inputs[j].value = p;
+                    j++;
+                });
+                if (parts[parts.length - 1] === "" && j < WORDS) inputs[j].value = "";
+                inputs[Math.min(j, WORDS - 1)].focus();
+            }
+            input.parentNode.classList.remove("bad");
+            onChange();
         });
-
-        var doneBtn = dialog.querySelector(".backup-done-btn");
-        doneBtn.addEventListener("click", function () {
-            document.body.removeChild(overlay);
-            resolve(true);
-        });
-
-        overlay.addEventListener("keydown", function (e) {
-            if (e.key === "Enter" || e.key === "Escape") {
-                e.stopPropagation();
-                doneBtn.click();
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Backspace" && input.value === "" && i > 0) {
+                e.preventDefault();
+                inputs[i - 1].focus();
             }
         });
-
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-        doneBtn.focus();
     });
+    return {
+        inputs: inputs,
+        value: function () { return inputs.map(function (x) { return normWord(x.value); }).join(" "); },
+        filled: function () { return inputs.every(function (x) { return normWord(x.value) !== ""; }); },
+        markBad: function (i) { if (inputs[i]) { inputs[i].parentNode.classList.add("bad"); inputs[i].focus(); } },
+        clear: function () { inputs.forEach(function (x) { x.value = ""; x.parentNode.classList.remove("bad"); }); },
+    };
 }
+
+async function applyPhrase(value, discardBackup, onError) {
+    if (busy) return;
+    busy = true;
+    try {
+        await svc("ApplyMnemonic", value, !!discardBackup);
+        showScreen("setup");
+        showStep("setup", "creating");
+        // Процесс сейчас завершится и запустится заново.
+    } catch (err) {
+        var e = mnemonicError(err);
+        if (/relaunch/.test(String(err && err.message || err))) {
+            showScreen("setup");
+            showStep("setup", "creating");
+            $("setup-creating-desc").textContent = t("setup.creating.manual");
+        } else {
+            onError(e);
+        }
+    } finally {
+        busy = false;
+    }
+}
+
+// --- Шаг 1: приветствие ---
+$("setup-create-btn").addEventListener("click", async function () {
+    try {
+        phrase = await svc("NewMnemonic");
+    } catch (err) {
+        flog("ERR", "frontend.setup", "NewMnemonic: " + err);
+        return;
+    }
+    phraseLang = getLocale() === "ru" ? "ru" : "en";
+    $("setup-phrase-saved").checked = false;
+    $("setup-phrase-next").disabled = true;
+    renderPhrase();
+    showStep("setup", "phrase");
+});
+
+$("setup-restore-btn").addEventListener("click", function () {
+    restoreGrid.clear();
+    $("setup-restore-error").textContent = "";
+    $("setup-restore-submit").disabled = true;
+    showStep("setup", "restore");
+    restoreGrid.inputs[0].focus();
+});
+
+// --- Шаг 2: фраза ---
+function renderPhrase() {
+    var grid = $("setup-phrase-grid");
+    grid.innerHTML = "";
+    phraseWords(phraseLang).forEach(function (w, i) {
+        var cell = document.createElement("div");
+        cell.className = "phrase-cell";
+        cell.innerHTML = '<span class="phrase-num"></span><span class="phrase-word"></span>';
+        cell.firstChild.textContent = String(i + 1);
+        cell.lastChild.textContent = w;
+        grid.appendChild(cell);
+    });
+    $("setup-lang-ru").setAttribute("aria-pressed", phraseLang === "ru" ? "true" : "false");
+    $("setup-lang-en").setAttribute("aria-pressed", phraseLang === "en" ? "true" : "false");
+}
+
+$("setup-lang-ru").addEventListener("click", function () { phraseLang = "ru"; renderPhrase(); });
+$("setup-lang-en").addEventListener("click", function () { phraseLang = "en"; renderPhrase(); });
+
+$("setup-phrase-copy").addEventListener("click", async function () {
+    if (!phrase) return;
+    // Через Go: буфер очищается через минуту, если в нём всё ещё фраза.
+    try {
+        await svc("CopyMnemonic", phrase[phraseLang]);
+    } catch (err) {
+        flog("ERR", "frontend.setup", "CopyMnemonic failed");
+        return;
+    }
+    var label = $("setup-phrase-copy-label");
+    label.textContent = t("setup.phrase.copied");
+    setTimeout(function () { label.textContent = t("setup.phrase.copy"); }, 1500);
+});
+
+$("setup-phrase-saved").addEventListener("change", function () {
+    $("setup-phrase-next").disabled = !this.checked;
+});
+
+$("setup-phrase-back").addEventListener("click", function () {
+    phrase = null;
+    $("setup-phrase-grid").innerHTML = "";
+    showStep("setup", "welcome");
+});
+
+$("setup-phrase-next").addEventListener("click", function () {
+    // Три случайных разных номера по возрастанию.
+    var all = [];
+    for (var i = 0; i < WORDS; i++) all.push(i);
+    var rnd = new Uint32Array(WORDS);
+    crypto.getRandomValues(rnd);
+    all.sort(function (a, b) { return rnd[a] - rnd[b]; });
+    confirmIdx = all.slice(0, 3).sort(function (a, b) { return a - b; });
+    renderConfirm();
+    showStep("setup", "confirm");
+    $("setup-confirm-rows").querySelector("input").focus();
+});
+
+// --- Шаг 3: проверка слов ---
+function renderConfirm() {
+    $("setup-confirm-desc").textContent = t("setup.confirm.desc")
+        .replace("{a}", confirmIdx[0] + 1).replace("{b}", confirmIdx[1] + 1).replace("{c}", confirmIdx[2] + 1);
+    $("setup-confirm-error").textContent = "";
+    var rows = $("setup-confirm-rows");
+    rows.innerHTML = "";
+    confirmIdx.forEach(function (idx) {
+        var row = document.createElement("div");
+        row.className = "confirm-row";
+        var lbl = document.createElement("span");
+        lbl.className = "setup-lbl";
+        lbl.textContent = t("setup.confirm.word") + " " + (idx + 1);
+        var cell = document.createElement("label");
+        cell.className = "phrase-cell";
+        var input = document.createElement("input");
+        input.type = "text";
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        input.setAttribute("aria-label", lbl.textContent);
+        input.dataset.idx = String(idx);
+        input.addEventListener("input", updateConfirm);
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && !$("setup-confirm-create").disabled) $("setup-confirm-create").click();
+        });
+        cell.appendChild(input);
+        row.appendChild(lbl);
+        row.appendChild(cell);
+        rows.appendChild(row);
+    });
+    $("setup-confirm-create").disabled = true;
+}
+
+function updateConfirm() {
+    var ok = true;
+    $("setup-confirm-rows").querySelectorAll("input").forEach(function (input) {
+        var idx = Number(input.dataset.idx);
+        var v = normWord(input.value);
+        var match = v !== "" && (v === phraseWords("ru")[idx] || v === phraseWords("en")[idx]);
+        input.parentNode.classList.toggle("ok", match);
+        if (!match) ok = false;
+    });
+    $("setup-confirm-create").disabled = !ok;
+}
+
+$("setup-confirm-show").addEventListener("click", function () { showStep("setup", "phrase"); });
+$("setup-confirm-back").addEventListener("click", function () { showStep("setup", "phrase"); });
+
+$("setup-confirm-create").addEventListener("click", function () {
+    if (!phrase) return;
+    var value = phrase.en;
+    var fromRecovery = setupDiscardBackup;
+    applyPhrase(value, fromRecovery, function (e) {
+        $("setup-confirm-error").textContent = e.text || t("setup.err.generic");
+    });
+});
+
+// --- Восстановление по фразе ---
+var restoreGrid = buildInputGrid($("setup-restore-grid"), function () {
+    $("setup-restore-error").textContent = "";
+    $("setup-restore-submit").disabled = !restoreGrid.filled();
+});
+
+$("setup-restore-back").addEventListener("click", function () {
+    restoreGrid.clear();
+    showStep("setup", "welcome");
+});
+
+$("setup-restore-submit").addEventListener("click", function () {
+    applyPhrase(restoreGrid.value(), false, function (e) {
+        $("setup-restore-error").textContent = e.mismatch ? t("recovery.mismatch") : (e.text || t("setup.err.generic"));
+        if (e.word !== undefined) restoreGrid.markBad(e.word);
+    });
+});
+
+// --- «Ключ базы утерян» ---
+var setupDiscardBackup = false;
+
+var recoveryGrid = buildInputGrid($("recovery-grid"), function () {
+    $("recovery-error").textContent = "";
+    $("recovery-restore-btn").disabled = !recoveryGrid.filled();
+});
+
+$("recovery-restore-btn").addEventListener("click", function () {
+    applyPhrase(recoveryGrid.value(), false, function (e) {
+        if (e.mismatch) {
+            showStep("recovery", "mismatch");
+            return;
+        }
+        $("recovery-error").textContent = e.text || t("setup.err.generic");
+        if (e.word !== undefined) recoveryGrid.markBad(e.word);
+    });
+});
+
+$("recovery-other-btn").addEventListener("click", function () {
+    recoveryGrid.clear();
+    $("recovery-restore-btn").disabled = true;
+    showStep("recovery", "phrase");
+    recoveryGrid.inputs[0].focus();
+});
+
+$("recovery-discard-btn").addEventListener("click", function () {
+    applyPhrase(recoveryGrid.value(), true, function (e) {
+        showStep("recovery", "phrase");
+        $("recovery-error").textContent = e.text || t("setup.err.generic");
+    });
+});
+
+// Новый профиль вместо утерянного: обычный поток создания, старая история удаляется.
+$("recovery-fresh-btn").addEventListener("click", function () {
+    setupDiscardBackup = true;
+    showScreen("setup");
+    showStep("setup", "welcome");
+    $("setup-create-btn").click();
+});

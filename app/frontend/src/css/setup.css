@@ -1,95 +1,399 @@
-/* ========== SETUP SCREEN ========== */
-#setup-screen {
+/* ========== SETUP SCREEN (профиль из секретной фразы) ========== */
+#setup-screen,
+#recovery-screen {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 100vh;
+    overflow-y: auto;
+    padding: 24px 16px;
+    box-sizing: border-box;
     background: var(--bg-app);
 }
 
 .setup-container {
-    text-align: center;
-    max-width: 400px;
     width: 100%;
-    padding: 48px 40px;
+    max-width: 480px;
+    margin: auto;
+    padding: 40px 40px 32px;
+    box-sizing: border-box;
     background: var(--bg-panel);
-    border-radius: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
     box-shadow: var(--shadow-md);
+}
+
+.setup-step {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.setup-step[hidden] {
+    display: none;
+}
+
+.setup-step-center {
+    align-items: stretch;
+    text-align: center;
+    gap: 16px;
 }
 
 .setup-container h1 {
     font-size: 32px;
-    margin-bottom: 8px;
     font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.setup-container h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 8px;
     color: var(--text-primary);
 }
 
 .setup-container p {
-    color: var(--text-secondary);
-    margin-bottom: 24px;
+    margin: 0;
     font-size: 14px;
     line-height: 1.5;
+    color: var(--text-secondary);
 }
 
-.setup-container input {
+.setup-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.setup-actions .setup-btn-primary {
+    flex: 1;
+}
+
+.setup-actions .setup-btn-secondary {
+    width: 120px;
+}
+
+.setup-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.setup-btn-primary,
+.setup-btn-secondary,
+.setup-btn-danger {
     width: 100%;
-    padding: 12px 16px;
-    background: var(--input-bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text-primary);
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 6px;
     font-size: 14px;
-    outline: none;
-    margin-bottom: 16px;
-    transition: border-color 0.15s;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.setup-container input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(93, 181, 166, 0.15);
-}
-
-.setup-container button:not(.password-toggle) {
-    width: 100%;
-    padding: 12px;
+.setup-btn-primary {
     background: var(--accent);
     color: var(--accent-btn-text);
     border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    transition: background 0.15s;
 }
 
-.setup-container button:not(.password-toggle):hover {
+.setup-btn-primary:hover:not(:disabled) {
     background: var(--accent-hover);
 }
 
-.setup-section {
-    text-align: left;
-    margin-bottom: 4px;
-}
-
-.setup-section h3 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 4px;
-    color: var(--text-primary);
-}
-
-.setup-section p {
-    font-size: 13px;
+.setup-btn-primary:disabled {
+    background: var(--input-bg);
     color: var(--text-muted);
-    margin-bottom: 12px;
-    line-height: 1.4;
+    cursor: default;
+}
+
+.setup-btn-secondary {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.setup-btn-secondary:hover {
+    background: var(--input-bg);
+}
+
+.setup-btn-danger {
+    background: transparent;
+    color: var(--red);
+    border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+}
+
+.setup-btn-danger:hover {
+    background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+/* --- Сетка слов --- */
+.phrase-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.phrase-cell {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.phrase-cell:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.phrase-cell.bad {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 15%, transparent);
+}
+
+.phrase-num {
+    width: 18px;
+    flex-shrink: 0;
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.phrase-word,
+.phrase-cell input {
+    min-width: 0;
+    flex: 1;
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 14px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.phrase-cell input {
+    height: 100%;
+    padding: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+}
+
+.phrase-cell.bad input {
+    color: var(--red);
+}
+
+.phrase-tools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.setup-lbl {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.setup-seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--input-bg);
+}
+
+.setup-seg button {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.setup-seg button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--accent-btn-text);
+}
+
+.setup-small-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.setup-small-btn:hover {
+    background: var(--input-bg);
+}
+
+.setup-note {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-primary);
+    text-align: left;
+}
+
+.setup-note.warn {
+    background: color-mix(in srgb, var(--yellow) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--yellow) 35%, transparent);
+}
+
+.setup-note.warn > i,
+.setup-note.warn > svg {
+    color: var(--yellow);
+    flex-shrink: 0;
+}
+
+.setup-note.err {
+    background: color-mix(in srgb, var(--red) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+}
+
+.setup-note.err > i,
+.setup-note.err > svg {
+    color: var(--red);
+    flex-shrink: 0;
+}
+
+.setup-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.setup-check input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+/* --- Проверка слов --- */
+.confirm-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.confirm-row {
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+
+.confirm-row .phrase-cell.ok::after {
+    content: "";
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    background: var(--green);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.setup-link {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.setup-link:hover {
+    color: var(--accent);
+}
+
+.setup-error {
+    min-height: 18px;
+    font-size: 13px;
+    color: var(--red);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.setup-error:empty {
+    display: none;
+}
+
+/* --- Создание, перезапуск --- */
+.setup-spinner {
+    color: var(--accent);
+    display: flex;
+    justify-content: center;
+}
+
+.setup-spinner svg {
+    width: 32px;
+    height: 32px;
+    animation: voice-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .setup-spinner svg {
+        animation: none;
+    }
+}
+
+/* --- «Ключ базы утерян» --- */
+.recovery-warning {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.recovery-warning > i,
+.recovery-warning > svg {
+    color: var(--yellow);
+}
+
+.recovery-warning h2 {
+    font-size: 18px;
+    margin: 0;
 }
 
 .setup-divider {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 16px 0;
     color: var(--text-muted);
     font-size: 13px;
 }
@@ -102,29 +406,12 @@
     background: var(--border);
 }
 
-.setup-btn-secondary {
-    width: 100%;
-    padding: 12px;
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    transition: background 0.15s, color 0.15s;
-}
-
-.setup-btn-secondary:hover {
-    background: var(--input-bg);
-    color: var(--text-primary);
-}
-
-.mono-input {
-    font-family: 'Consolas', monospace;
+.setup-hint {
     font-size: 12px !important;
+    text-align: center;
 }
 
+/* ========== Поле пароля с кнопкой «показать» (настройки Meshtastic) ========== */
 .password-wrap {
     position: relative;
     width: 100%;
@@ -164,62 +451,9 @@
     color: var(--text-primary);
 }
 
-
-/* --- Setup link (Have a backup?) --- */
-.setup-link {
-    display: inline-block;
-    margin-top: 16px;
-    color: var(--text-muted);
-    font-size: 13px;
-    text-decoration: none;
-    cursor: pointer;
-    transition: color 0.15s;
-}
-
-.setup-link:hover {
-    color: var(--accent);
-}
-
-.setup-btn-primary {
-    margin-top: 24px;
-}
-
-.setup-hint {
-    color: var(--text-muted);
-    font-size: 13px;
-    margin-bottom: 8px;
-}
-
-/* --- Recovery screen --- */
-#recovery-screen {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    background: var(--bg-app);
-}
-
-.recovery-warning {
-    text-align: center;
-    margin-bottom: 24px;
-    color: var(--text-secondary);
-}
-
-.recovery-warning i {
-    color: var(--yellow);
-    margin-bottom: 8px;
-}
-
-.recovery-warning h3 {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 8px;
-}
-
-.recovery-warning p {
-    font-size: 13px;
-    line-height: 1.5;
+.mono-input {
+    font-family: 'Consolas', monospace;
+    font-size: 12px !important;
 }
 
 .error-text {

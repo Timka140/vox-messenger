@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"time"
 
 	_ "github.com/mutecomm/go-sqlcipher/v4"
@@ -120,6 +122,44 @@ func (s *Storage) Close() error {
 // DB возвращает *sql.DB для прямых запросов.
 func (s *Storage) DB() *sql.DB {
 	return s.db
+}
+
+// ExportEncrypted копирует всю БД в новый файл path, зашифрованный ключом newKey
+// (ATTACH + sqlcipher_export на одном соединении пула). Существующий path удаляется.
+// Используется при создании профиля: база перешифровывается ключом из секретной
+// фразы, а файлы подменяются при следующем старте.
+func (s *Storage) ExportEncrypted(path string, newKey []byte) error {
+	const op = "storage.ExportEncrypted"
+	if len(newKey) != 32 {
+		return fmt.Errorf("%s: key must be 32 bytes", op)
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("%s: remove old: %w", op, err)
+	}
+
+	ctx := context.Background()
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: conn: %w", op, err)
+	}
+	defer conn.Close()
+
+	keyLit := fmt.Sprintf("x'%s'", hex.EncodeToString(newKey))
+	if _, err := conn.ExecContext(ctx, `ATTACH DATABASE ? AS vox_export KEY "`+keyLit+`"`, path); err != nil {
+		return fmt.Errorf("%s: attach: %w", op, err)
+	}
+	if _, err := conn.ExecContext(ctx, "PRAGMA vox_export.cipher_page_size = 4096"); err != nil {
+		_, _ = conn.ExecContext(ctx, "DETACH DATABASE vox_export")
+		return fmt.Errorf("%s: page size: %w", op, err)
+	}
+	if _, err := conn.ExecContext(ctx, "SELECT sqlcipher_export('vox_export')"); err != nil {
+		_, _ = conn.ExecContext(ctx, "DETACH DATABASE vox_export")
+		return fmt.Errorf("%s: export: %w", op, err)
+	}
+	if _, err := conn.ExecContext(ctx, "DETACH DATABASE vox_export"); err != nil {
+		return fmt.Errorf("%s: detach: %w", op, err)
+	}
+	return nil
 }
 
 // Checkpoint принудительно сбрасывает WAL в основной файл БД.
