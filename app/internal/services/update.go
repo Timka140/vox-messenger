@@ -156,8 +156,12 @@ type UpdateService struct {
 	repairMu sync.Mutex
 
 	// confirming — confirmAndEmit уже идёт: повторные auth_ok (reconnect)
-	// не плодят параллельные походы за манифестом.
+	// не плодят параллельные походы за манифестом. recheck — за это время
+	// пришла новая подсказка: идущая проверка сделает ещё один проход.
 	confirming atomic.Bool
+	recheck    atomic.Bool
+	// retryDelays — паузы перед повторами confirmAndEmit (тесты укорачивают).
+	retryDelays []time.Duration
 }
 
 // manifestClient — манифест маленький: общий таймаут, чтобы зависшее
@@ -173,6 +177,7 @@ func NewUpdateService(log *slog.Logger, appVersion, pubKeyB64 string, getServerB
 		log:           log,
 		currentRaw:    appVersion,
 		getServerBase: getServerBase,
+		retryDelays:   confirmRetryDelays,
 	}
 	if v, err := version.Parse(appVersion); err == nil {
 		s.currentVersion = v
@@ -204,6 +209,7 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 	}
 	s.mu.RLock()
 	fn := s.emit
+	cached := s.latestRelease
 	s.mu.RUnlock()
 
 	s.log.Info("📦 latest release available",
@@ -221,13 +227,29 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 	// подписанным манифестом. Решение (версия, force, откат, есть ли сборка
 	// под эту платформу) принимается по манифесту, иначе подложный revoked
 	// откатил бы клиента, а force без сборки под платформу запер бы UI.
+	// Latest сменился не в нашу пользу (например, отозвали предложенную
+	// версию) — тоже проверяем: обновятся Настройки и снимется баннер.
 	revoked := info.Version != s.currentRaw && slices.Contains(info.Revoked, s.currentRaw)
-	if fn != nil && (s.isNewerVersion(info.Version) || revoked) && s.confirming.CompareAndSwap(false, true) {
-		go func() {
-			defer s.confirming.Store(false)
-			s.confirmAndEmit(fn)
-		}()
+	changed := cached == nil || cached.Version != info.Version
+	if fn == nil || !(s.isNewerVersion(info.Version) || revoked || changed) {
+		return
 	}
+	s.recheck.Store(true)
+	if !s.confirming.CompareAndSwap(false, true) {
+		return // идущая проверка увидит recheck
+	}
+	go func() {
+		for {
+			s.recheck.Store(false)
+			s.confirmAndEmit(fn)
+			s.confirming.Store(false)
+			// Подсказка, пришедшая после сброса confirming, запустила свою
+			// горутину — тогда CAS не пройдёт и эта завершится.
+			if !s.recheck.Load() || !s.confirming.CompareAndSwap(false, true) {
+				return
+			}
+		}
+	}()
 }
 
 // confirmAndEmit сверяет подсказку auth_ok с подписанным манифестом и
@@ -235,10 +257,10 @@ func (s *UpdateService) OnLatestReleaseFromAuthOK(info *network.LatestReleaseInf
 func (s *UpdateService) confirmAndEmit(fn func(string, any)) {
 	res, err := s.CheckForUpdates()
 	// Неверная подпись повтором не лечится — повторяем только сбои получения.
-	for i := 0; err != nil && !errors.Is(err, ErrVerifyFailed) && i < len(confirmRetryDelays); i++ {
+	for i := 0; err != nil && !errors.Is(err, ErrVerifyFailed) && i < len(s.retryDelays); i++ {
 		s.log.Warn("update: манифест для auth_ok не получен, повтор",
-			slog.String("error", err.Error()), slog.Duration("in", confirmRetryDelays[i]))
-		time.Sleep(confirmRetryDelays[i])
+			slog.String("error", err.Error()), slog.Duration("in", s.retryDelays[i]))
+		time.Sleep(s.retryDelays[i])
 		res, err = s.CheckForUpdates()
 	}
 	if err != nil {
@@ -246,6 +268,8 @@ func (s *UpdateService) confirmAndEmit(fn func(string, any)) {
 		return
 	}
 	if !res.Available || !res.SupportedForPlatform {
+		// Баннер от прошлой подсказки мог устареть (версию отозвали).
+		fn("vox:update-none", nil)
 		return
 	}
 	fn("vox:update-available", map[string]any{
@@ -306,8 +330,7 @@ func (s *UpdateService) checkManifest(m *Manifest) *CheckResult {
 		return &CheckResult{Available: false, Current: s.currentRaw}
 	}
 
-	// Текущая версия отозвана — ставим latest, даже если он старше (откат).
-	revoked := latestEntry.Version != s.currentRaw && s.isRevokedCurrent(m)
+	revoked := s.revokedRollback(m)
 	result := &CheckResult{
 		Current:   s.currentRaw,
 		Latest:    latestEntry.Version,
@@ -353,9 +376,13 @@ func (s *UpdateService) DownloadUpdate(ver string) (*DownloadResult, error) {
 	if entry == nil {
 		return nil, fmt.Errorf("version %s not in manifest", ver)
 	}
+	// Баннер мог остаться от прошлой проверки, а версию с тех пор отозвали.
+	if entry.Revoked {
+		return nil, fmt.Errorf("version %s is revoked", ver)
+	}
 	// Старшую версию ставим только как откат с отозванной текущей — и только
 	// ту, что манифест назначил latest.
-	if !s.isNewerVersion(ver) && !(ver == m.Latest && ver != s.currentRaw && s.isRevokedCurrent(m)) {
+	if !s.isNewerVersion(ver) && !(ver == m.Latest && s.revokedRollback(m)) {
 		return nil, fmt.Errorf("version %s is not an update for %s", ver, s.currentRaw)
 	}
 
@@ -1105,6 +1132,13 @@ func (s *UpdateService) fetchManifest() (*Manifest, error) {
 			m.Version, ManifestFormatVersion)
 	}
 	return &m, nil
+}
+
+// revokedRollback — текущая версия отозвана, и манифест назначил latest
+// другую: её ставим, даже если она старше (откат). Одно правило для
+// предложения обновления и для его установки.
+func (s *UpdateService) revokedRollback(m *Manifest) bool {
+	return m.Latest != s.currentRaw && s.isRevokedCurrent(m)
 }
 
 // isRevokedCurrent — текущая версия помечена в манифесте как отозванная.

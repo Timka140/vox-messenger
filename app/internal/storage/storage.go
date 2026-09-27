@@ -74,6 +74,10 @@ func pingWithRetry(db *sql.DB) error {
 		} else {
 			lastErr = err
 		}
+		// Чужой ключ ожиданием не лечится — повторы только для занятого файла.
+		if IsWrongKey(lastErr) {
+			return lastErr
+		}
 		time.Sleep(delay)
 	}
 	return lastErr

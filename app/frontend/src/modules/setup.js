@@ -21,7 +21,15 @@ export async function init() {
             return;
         }
 
-        var hasIdent = await svc("HasIdentity");
+        var hasIdent;
+        try {
+            hasIdent = await svc("HasIdentity");
+        } catch (err) {
+            // Профиль не проверить — экран создания тут тоже тупик.
+            flog("ERR", "frontend.init", "identity check failed: " + err);
+            showBroken(err);
+            return;
+        }
         if (hasIdent) {
             try {
                 state.myID = await svc("LoadIdentity");
@@ -132,6 +140,7 @@ function mnemonicError(err) {
     if (msg.indexOf("checksum") !== -1) return { text: t("setup.err.checksum") };
     if (msg.indexOf("mixed_lang") !== -1) return { text: t("setup.err.mixed_lang") };
     if (msg.indexOf("profile_exists") !== -1) return { text: t("setup.err.profile_exists") };
+    if (msg.indexOf("busy") !== -1) return { text: t("setup.err.busy") };
     return { text: t("setup.err.generic") + " " + msg };
 }
 

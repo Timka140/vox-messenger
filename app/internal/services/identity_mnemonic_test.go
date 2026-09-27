@@ -91,7 +91,7 @@ func TestApplyMnemonicRestoresBackupViaSwap(t *testing.T) {
 	}
 	relaunched := false
 	orig := relaunchSelf
-	relaunchSelf = func() error { relaunched = true; return nil }
+	relaunchSelf = func(*slog.Logger) error { relaunched = true; return nil }
 	t.Cleanup(func() { relaunchSelf = orig })
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))

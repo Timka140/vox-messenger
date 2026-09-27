@@ -628,9 +628,8 @@ func (s *NetworkService) Connect(listenAddr, dialAddr, seedAddr string) error {
 		s.log.Info("📋 сервер запросил логи")
 		s.pushLogsToServer()
 	})
-	client.SetOnLatestRelease(func(info *network.LatestReleaseInfo) {
-		s.emitBus(TopicLatestRelease, info)
-	})
+	hint := &releaseHint{}
+	client.SetOnLatestRelease(hint.set)
 	client.SetOnSFUConfig(func(endpoint, secret string) {
 		if s.voice != nil {
 			s.voice.SetSFUConfig(endpoint, secret)
@@ -679,6 +678,7 @@ func (s *NetworkService) Connect(listenAddr, dialAddr, seedAddr string) error {
 
 			s.log.Info("подключён к сигнальному серверу", slog.String("addr", entry.Addr))
 			s.emitEvent("vox:signal-updated", nil)
+			s.emitReleaseHint(hint)
 
 			// Отправляем логи на сервер (автоматически при подключении)
 			go s.pushLogsToServer()
@@ -709,6 +709,33 @@ func (s *NetworkService) Connect(listenAddr, dialAddr, seedAddr string) error {
 	s.startReconnectLoop()
 
 	return fmt.Errorf("%s: не удалось подключиться ни к одному серверу после %d попыток: %w", op, maxRetries, lastErr)
+}
+
+// releaseHint держит подсказку о релизе из auth_ok, пока клиент не стал
+// s.client: UpdateService сверяет её с манифестом через ActiveSignalHTTPBase,
+// а внутри Connect адрес клиента ещё пуст, при переподключении s.client —
+// прежний узел (при выкладке релиза по узлам у него может быть старый манифест).
+type releaseHint struct {
+	mu   sync.Mutex
+	info *network.LatestReleaseInfo
+}
+
+func (h *releaseHint) set(info *network.LatestReleaseInfo) {
+	h.mu.Lock()
+	h.info = info
+	h.mu.Unlock()
+}
+
+// emitReleaseHint отдаёт подсказку последнего auth_ok в шину — вызывать после
+// публикации клиента в s.client.
+func (s *NetworkService) emitReleaseHint(h *releaseHint) {
+	h.mu.Lock()
+	info := h.info
+	h.info = nil
+	h.mu.Unlock()
+	if info != nil {
+		s.emitBus(TopicLatestRelease, info)
+	}
 }
 
 // UpdateNickTag отправляет серверу новый nick_tag через активное WS-соединение.
@@ -769,9 +796,8 @@ func (s *NetworkService) ReconnectSignal() error {
 		s.emitEvent("vox:signal-updated", nil)
 		s.startReconnectLoop()
 	})
-	newClient.SetOnLatestRelease(func(info *network.LatestReleaseInfo) {
-		s.emitBus(TopicLatestRelease, info)
-	})
+	hint := &releaseHint{}
+	newClient.SetOnLatestRelease(hint.set)
 	newClient.SetOnSFUConfig(func(endpoint, secret string) {
 		if s.voice != nil {
 			s.voice.SetSFUConfig(endpoint, secret)
@@ -799,6 +825,7 @@ func (s *NetworkService) ReconnectSignal() error {
 
 		s.log.Info("переподключён к сигнальному серверу", slog.String("addr", entry.Addr))
 		s.emitEvent("vox:signal-updated", nil)
+		s.emitReleaseHint(hint)
 
 		// Подключаемся к друзьям которые были офлайн
 		go s.connectToOnlineFriends()

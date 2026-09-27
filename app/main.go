@@ -150,15 +150,11 @@ func main() {
 	case err != nil:
 		logger.Error("подмена базы после создания профиля не удалась", slog.String("error", err.Error()))
 	case swap == storage.SwapApplied:
+		// .bak после восстановления фразой уберёт OpenAtStartup — уже после
+		// того, как подменённая база откроется.
 		logger.Info("база перешифрована ключом из секретной фразы")
-		// Восстановление фразой уносит копию .bak в подменённую базу —
-		// сам .bak больше не нужен (при новом профиле его уже нет).
-		removeDBFiles(filepath.Join(dataDir, "vox.db.bak"))
 	case swap == storage.SwapResumed:
 		logger.Warn("прерванная подмена базы доведена до конца")
-		// Как и при SwapApplied: если это было восстановление фразой, .bak уже
-		// лежит внутри подменённой базы.
-		removeDBFiles(filepath.Join(dataDir, "vox.db.bak"))
 	case swap == storage.SwapPartial:
 		logger.Warn("найдена половина подготовленной перешифровки базы — удалена")
 	}
@@ -170,78 +166,13 @@ func main() {
 		log.Fatal("DB key error: ", err)
 	}
 
-	// Открываем зашифрованную БД
-	dbPath := filepath.Join(dataDir, "vox.db")
-	bakPath := dbPath + ".bak"
-	var recoveryMode bool
-	store, err := storage.Open(dbPath, dbKey)
+	// Открываем зашифрованную БД; перенос в .bak при утере ключа и разбор
+	// оставшейся .bak — storage.OpenAtStartup.
+	store, recoveryMode, err := storage.OpenAtStartup(logger, filepath.Join(dataDir, "vox.db"), dbKey)
 	if err != nil {
-		// vox.db не открылась — пробуем .bak (после восстановления vox.key из бэкапа)
-		if _, bakErr := os.Stat(bakPath); bakErr == nil {
-			logger.Info("пробую открыть .bak с текущим ключом")
-			bakStore, bakOpenErr := storage.Open(bakPath, dbKey)
-			if bakOpenErr == nil {
-				// .bak открылась! Значит vox.key восстановлен, а vox.db — мусор
-				bakStore.Close()
-				// удаляем пустую/испорченную вместе с её WAL
-				removeDBFiles(dbPath)
-				moveDBFiles(logger, bakPath, dbPath)
-				store, err = storage.Open(dbPath, dbKey)
-				if err != nil {
-					log.Fatal("Storage error (после восстановления .bak): ", err)
-				}
-				logger.Info("БД восстановлена из .bak")
-			}
-		}
-
-		// Если всё ещё не открыта — сохраняем копию и пересоздаём
-		if store == nil {
-			if _, statErr := os.Stat(dbPath); statErr == nil {
-				logger.Warn("БД недоступна (ключ утерян?), сохраняю копию в .bak и пересоздаю",
-					slog.String("error", err.Error()),
-					slog.String("backup", bakPath))
-				if _, bakErr := os.Stat(bakPath); bakErr == nil {
-					// В .bak уже лежит неразобранная история, а vox.db — пустая
-					// база прошлого экрана восстановления: не затираем .bak.
-					removeDBFiles(dbPath)
-				} else {
-					moveDBFiles(logger, dbPath, bakPath)
-				}
-			}
-			store, err = storage.Open(dbPath, dbKey)
-			if err != nil {
-				log.Fatal("Storage error (после пересоздания): ", err)
-			}
-			recoveryMode = true
-		}
+		log.Fatal("Storage error: ", err)
 	}
 	defer store.Close()
-
-	// .bak лежит, пока пользователь не решил его судьбу (восстановить фразой или
-	// удалить): после перезапуска свежая база открывается, но экран — всё равно
-	// восстановление, иначе создание профиля упрётся в phrase_mismatch.
-	// Только если в открытой базе нет профиля: рабочий профиль рядом с
-	// забытым .bak не прячем за экраном восстановления — оттуда «новый
-	// профиль» перезаписал бы его ключ.
-	if _, bakErr := os.Stat(bakPath); bakErr == nil {
-		var n int
-		switch err := store.DB().QueryRow("SELECT COUNT(*) FROM identity").Scan(&n); {
-		case err != nil:
-			// Профиль не проверить — экран восстановления не включаем: ошибку
-			// покажет загрузка профиля, а ApplyMnemonic на той же проверке откажет.
-			logger.Error("проверка профиля рядом с .bak не удалась", slog.String("error", err.Error()))
-		case n == 0:
-			recoveryMode = true
-		case storage.KeyOpens(bakPath, dbKey):
-			// Текущий ключ открывает .bak — это копия уже сделанного
-			// восстановления (не удалилась после подмены). Иначе при потере
-			// vox.key старт принял бы рабочую vox.db за пустую и удалил её.
-			removeDBFiles(bakPath)
-			logger.Info("удалена старая .bak, уже перенесённая в рабочую базу")
-		default:
-			logger.Warn("рядом с рабочей базой лежит старая .bak, не трогаю", slog.String("backup", bakPath))
-		}
-	}
 
 	// Сессия
 	sess := session.New()
@@ -1195,22 +1126,4 @@ func remoteDebugArgs(env string) []string {
 		return nil
 	}
 	return []string{"--remote-debugging-port=" + port}
-}
-
-// moveDBFiles переносит базу SQLite вместе с -wal/-shm: без WAL в копии
-// пропадут последние записи, а чужой WAL рядом с новой базой ей помешает.
-func moveDBFiles(logger *slog.Logger, from, to string) {
-	removeDBFiles(to)
-	for _, sfx := range []string{"", "-wal", "-shm"} {
-		if err := os.Rename(from+sfx, to+sfx); err != nil && !os.IsNotExist(err) {
-			logger.Error("перенос файла базы не удался",
-				slog.String("from", from+sfx), slog.String("to", to+sfx), slog.String("error", err.Error()))
-		}
-	}
-}
-
-func removeDBFiles(path string) {
-	for _, sfx := range []string{"", "-wal", "-shm"} {
-		os.Remove(path + sfx)
-	}
 }

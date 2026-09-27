@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"strconv"
 	"syscall"
+	"time"
 )
 
 const updateRelaunchFlag = "--from-update"
@@ -27,39 +27,57 @@ const updateWaitPidFlag = "--wait-pid"
 // Право на foreground выдаётся всем (ASFW_ANY) до запуска: PID здесь есть
 // только у промежуточного cmd.exe, который завершается сразу, а без права
 // окно нового процесса откроется под другими окнами.
-func startDetached(exe string) error {
-	_ = allowSetForegroundWindow(asfwAny)
-	parentPid := strconv.Itoa(os.Getpid())
-	// Кавычки вокруг "" — это title параметр для start (обязательный когда есть кавычки в exe пути)
-	cmd := exec.Command("cmd.exe", "/C", "start", "", "/B", exe, updateRelaunchFlag, updateWaitPidFlag, parentPid)
+//
+// Командная строка собирается целиком: exec.Command берёт путь в кавычки
+// только при пробеле, и cmd разбирал бы & ^ | в пути как свои операторы
+// (D:\R&D\vox.exe → «D:\R» и команда «D\vox.exe»). /S снимает внешние
+// кавычки, путь остаётся в своих; "" — заголовок окна для start.
+func startDetached(log *slog.Logger, exe string) error {
+	// Несуществующий exe start не отвергает, а показывает окно ошибки и
+	// ждёт, пока его закроют, — проверяем заранее.
+	if _, err := os.Stat(exe); err != nil {
+		return err
+	}
+	if err := allowSetForegroundWindowAny(); err != nil {
+		log.Debug("AllowSetForegroundWindow не удался, окно может открыться позади",
+			slog.String("error", err.Error()))
+	}
+	cmd := exec.Command("cmd.exe")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+		CmdLine: fmt.Sprintf(`cmd.exe /S /C "start "" /B "%s" %s %s %d"`,
+			exe, updateRelaunchFlag, updateWaitPidFlag, os.Getpid()),
 	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	_ = cmd.Wait() // start сразу возвращается — Wait очищает zombie cmd.exe
-	return nil
+	// start возвращается сразу; ненулевой код — новый процесс не запустился.
+	// Завис (окно ошибки ждёт пользователя) — считаем, что не запустился.
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("cmd start: %w", err)
+		}
+		return nil
+	case <-time.After(15 * time.Second):
+		_ = cmd.Process.Kill()
+		return fmt.Errorf("cmd start: нет ответа за 15 с")
+	}
 }
 
-// asfwAny — ASFW_ANY: право на foreground получает любой процесс.
-const asfwAny = -1
+// ASFW_ANY: право на foreground получает любой процесс.
+const asfwAny = ^uintptr(0)
 
-// allowSetForegroundWindow разрешает процессу (PID или asfwAny) забрать
-// foreground в обход стандартных Windows-ограничений.
-func allowSetForegroundWindow(pid int) error {
-	user32, err := syscall.LoadDLL("user32.dll")
-	if err != nil {
+var procAllowSetForegroundWindow = user32.NewProc("AllowSetForegroundWindow")
+
+// allowSetForegroundWindowAny разрешает любому процессу забрать foreground
+// в обход стандартных Windows-ограничений.
+func allowSetForegroundWindowAny() error {
+	if r1, _, err := procAllowSetForegroundWindow.Call(asfwAny); r1 == 0 {
 		return err
-	}
-	proc, err := user32.FindProc("AllowSetForegroundWindow")
-	if err != nil {
-		return err
-	}
-	r1, _, callErr := proc.Call(uintptr(uint32(pid)))
-	if r1 == 0 {
-		return callErr
 	}
 	return nil
 }
@@ -97,7 +115,7 @@ func applyUpdatePlatform(log *slog.Logger, exe, pending, prevVersion string) err
 		slog.String("exe", exe))
 
 	// Step 3: запускаем через cmd /C start — полностью независимый процесс
-	if err := startDetached(exe); err != nil {
+	if err := startDetached(log, exe); err != nil {
 		_ = os.Remove(exe)
 		_ = os.Rename(backup, exe)
 		return fmt.Errorf("start new exe: %w", err)
@@ -127,7 +145,7 @@ func rollbackUpdatePlatform(log *slog.Logger, exe, backup, currentVersion string
 		slog.String("exe", exe),
 		slog.String("failed_kept_at", failed))
 
-	if err := startDetached(exe); err != nil {
+	if err := startDetached(log, exe); err != nil {
 		return fmt.Errorf("start restored exe: %w", err)
 	}
 	return nil

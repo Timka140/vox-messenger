@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 )
 
@@ -9,12 +10,12 @@ import (
 // --from-update --wait-pid — новый процесс дождётся выхода этого и поднимет окно).
 // Сам процесс не завершает: вызывающий зовёт quit (main.go: app.Quit()).
 // Переменная — чтобы тесты не запускали свой бинарь заново.
-var relaunchSelf = func() error {
+var relaunchSelf = func(log *slog.Logger) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("relaunch: executable: %w", err)
 	}
-	if err := startDetached(exe); err != nil {
+	if err := startDetached(log, exe); err != nil {
 		return fmt.Errorf("relaunch: start: %w", err)
 	}
 	return nil
