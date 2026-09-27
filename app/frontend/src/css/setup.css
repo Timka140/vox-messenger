@@ -352,6 +352,17 @@
     display: none;
 }
 
+/* Перебивает серый .setup-container p */
+.setup-container .setup-error {
+    font-size: 13px;
+    color: var(--red);
+}
+
+.setup-step-center .setup-error {
+    justify-content: center;
+    text-align: center;
+}
+
 /* --- Создание, перезапуск --- */
 .setup-spinner {
     color: var(--accent);

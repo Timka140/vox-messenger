@@ -115,6 +115,10 @@ export async function initUpdates() {
         tryStartupCheck();
     }
 
+    // Go сверил подсказку с манифестом — предложить нечего (например,
+    // предложенную версию отозвали): убираем устаревший баннер.
+    Events.On("vox:update-none", clearOffer);
+
     Events.On("vox:update-progress", function (event) {
         var p = event.data;
         if (!p) return;
@@ -154,6 +158,14 @@ function showBanner(info) {
 function hideBanner() {
     if (!bannerEl) bannerEl = document.getElementById("update-banner");
     if (bannerEl) bannerEl.style.display = "none";
+}
+
+function clearOffer() {
+    if (updateState.downloading) return;
+    updateState.latest = null;
+    hideBanner();
+    if (!forceModalEl) forceModalEl = document.getElementById("update-force-modal");
+    if (forceModalEl) forceModalEl.style.display = "none";
 }
 
 function showForceModal(info) {
@@ -234,6 +246,8 @@ export async function checkForUpdates() {
             // available решил Go по подписанному манифесту, revoked — текущая отозвана (откат).
             updateState.latest = { version: res.latest, force: res.force, changelog: res.changelog, revoked: !!res.revoked };
             showBanner(updateState.latest);
+        } else if (res) {
+            clearOffer();
         }
         return res;
     } catch (err) {

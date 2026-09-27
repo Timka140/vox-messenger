@@ -172,7 +172,7 @@ func (s *IdentityService) ApplyMnemonic(phrase string, discardBackup bool) (stri
 
 func (s *IdentityService) relaunch() error {
 	s.applied = true
-	if err := relaunchSelf(); err != nil {
+	if err := relaunchSelf(s.log); err != nil {
 		// Файлы уже готовы: при ручном запуске подмена всё равно произойдёт.
 		s.log.Error("перезапуск не удался", slog.String("error", err.Error()))
 		return err
