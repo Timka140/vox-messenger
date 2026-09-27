@@ -136,6 +136,27 @@ func main() {
 	// Директория данных — рядом с исполняемым файлом
 	dataDir := "."
 
+	// Профиль, созданный из секретной фразы, оставляет базу, перешифрованную
+	// ключом из фразы, в vox.db.new и ключ в vox.key.new — ставим их на место
+	// до открытия БД. Если старый процесс не успел закрыться, vox.db ещё занята —
+	// повторяем; не вышло — файлы остаются до следующего старта, а в текущей
+	// базе профиля нет (ApplyMnemonic его туда не пишет), и покажется экран создания.
+	swap, err := storage.ApplyPendingRekey(dataDir)
+	for i := 0; err != nil && i < 20; i++ {
+		time.Sleep(500 * time.Millisecond)
+		swap, err = storage.ApplyPendingRekey(dataDir)
+	}
+	switch {
+	case err != nil:
+		logger.Error("подмена базы после создания профиля не удалась", slog.String("error", err.Error()))
+	case swap == storage.SwapApplied:
+		logger.Info("база перешифрована ключом из секретной фразы")
+	case swap == storage.SwapResumed:
+		logger.Warn("прерванная подмена базы доведена до конца")
+	case swap == storage.SwapPartial:
+		logger.Warn("найдена половина подготовленной перешифровки базы — удалена")
+	}
+
 	// Загружаем (или создаём) ключ шифрования БД
 	dbKeyPath := filepath.Join(dataDir, "vox.key")
 	dbKey, err := identity.LoadOrCreateDBKey(dbKeyPath)
@@ -156,8 +177,9 @@ func main() {
 			if bakOpenErr == nil {
 				// .bak открылась! Значит vox.key восстановлен, а vox.db — мусор
 				bakStore.Close()
-				os.Remove(dbPath) // удаляем пустую/испорченную
-				os.Rename(bakPath, dbPath)
+				// удаляем пустую/испорченную вместе с её WAL
+				removeDBFiles(dbPath)
+				moveDBFiles(logger, bakPath, dbPath)
 				store, err = storage.Open(dbPath, dbKey)
 				if err != nil {
 					log.Fatal("Storage error (после восстановления .bak): ", err)
@@ -172,7 +194,13 @@ func main() {
 				logger.Warn("БД недоступна (ключ утерян?), сохраняю копию в .bak и пересоздаю",
 					slog.String("error", err.Error()),
 					slog.String("backup", bakPath))
-				os.Rename(dbPath, bakPath)
+				if _, bakErr := os.Stat(bakPath); bakErr == nil {
+					// В .bak уже лежит неразобранная история, а vox.db — пустая
+					// база прошлого экрана восстановления: не затираем .bak.
+					removeDBFiles(dbPath)
+				} else {
+					moveDBFiles(logger, dbPath, bakPath)
+				}
 			}
 			store, err = storage.Open(dbPath, dbKey)
 			if err != nil {
@@ -182,6 +210,13 @@ func main() {
 		}
 	}
 	defer store.Close()
+
+	// .bak лежит, пока пользователь не решил его судьбу (восстановить фразой или
+	// удалить): после перезапуска свежая база открывается, но экран — всё равно
+	// восстановление, иначе создание профиля упрётся в phrase_mismatch.
+	if _, bakErr := os.Stat(bakPath); bakErr == nil {
+		recoveryMode = true
+	}
 
 	// Сессия
 	sess := session.New()
@@ -427,8 +462,19 @@ func main() {
 
 	// Когда UpdateService применил обновление — завершить приложение
 	// (новый процесс уже запущен через exec.Command)
-	app.Event.On("vox:update-applied", func(_ *application.CustomEvent) {
+	// Выход после обновления/перезапуска — прямым вызовом, не через app.Event:
+	// Emit + Quit из обработчика того же события взаимно блокируются в Wails v3 alpha.
+	updateSvc.SetQuit(func() {
 		logger.Info("update applied, quitting for new process")
+		app.Quit()
+	})
+	// Профиль создан или восстановлен из секретной фразы — новый процесс уже
+	// запущен, он подменит базу при старте.
+	identitySvc.SetEmitter(func(eventName string, data any) {
+		app.Event.Emit(eventName, data)
+	})
+	identitySvc.SetQuit(func() {
+		logger.Info("relaunch after profile setup, quitting for new process")
 		app.Quit()
 	})
 
@@ -1126,4 +1172,22 @@ func remoteDebugArgs(env string) []string {
 		return nil
 	}
 	return []string{"--remote-debugging-port=" + port}
+}
+
+// moveDBFiles переносит базу SQLite вместе с -wal/-shm: без WAL в копии
+// пропадут последние записи, а чужой WAL рядом с новой базой ей помешает.
+func moveDBFiles(logger *slog.Logger, from, to string) {
+	removeDBFiles(to)
+	for _, sfx := range []string{"", "-wal", "-shm"} {
+		if err := os.Rename(from+sfx, to+sfx); err != nil && !os.IsNotExist(err) {
+			logger.Error("перенос файла базы не удался",
+				slog.String("from", from+sfx), slog.String("to", to+sfx), slog.String("error", err.Error()))
+		}
+	}
+}
+
+func removeDBFiles(path string) {
+	for _, sfx := range []string{"", "-wal", "-shm"} {
+		os.Remove(path + sfx)
+	}
 }

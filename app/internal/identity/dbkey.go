@@ -41,3 +41,20 @@ func LoadOrCreateDBKey(path string) ([]byte, error) {
 
 	return key, nil
 }
+
+// WriteDBKey записывает ключ БД (hex, 0600) атомарно: через временный файл и rename.
+func WriteDBKey(path string, key []byte) error {
+	const op = "identity.WriteDBKey"
+	if len(key) != dbKeySize {
+		return fmt.Errorf("%s: key must be %d bytes", op, dbKeySize)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(hex.EncodeToString(key)), 0600); err != nil {
+		return fmt.Errorf("%s: write: %w", op, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("%s: rename: %w", op, err)
+	}
+	return nil
+}

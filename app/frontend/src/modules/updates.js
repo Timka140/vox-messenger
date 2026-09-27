@@ -193,7 +193,7 @@ export async function downloadAndApply(version) {
         }
         flog("INF", "updates", "applying update");
         await svc("ApplyUpdate");
-        // После ApplyUpdate backend пошлёт vox:update-applied и приложение завершится
+        // После ApplyUpdate backend сам завершит приложение (UpdateService.SetQuit)
     } catch (err) {
         updateState.lastError = String(err);
         flog("ERR", "updates", "download/apply failed: " + err);

@@ -10,8 +10,6 @@ import (
 	"vox_app/internal/identity"
 	"vox_app/internal/session"
 	"vox_app/internal/storage"
-	"os"
-	"path/filepath"
 )
 
 type IdentityService struct {
@@ -20,6 +18,8 @@ type IdentityService struct {
 	store   *storage.Storage
 	dataDir string
 	network *NetworkService
+	emit    func(string, any)
+	quit    func() // завершение процесса после перезапуска (SetQuit)
 }
 
 // NewIdentityService принимает network для UpdateNickTag + BroadcastNicknameUpdate
@@ -42,46 +42,6 @@ func (s *IdentityService) HasIdentity() (bool, error) {
 		return false, fmt.Errorf("HasIdentity: %w", err)
 	}
 	return count > 0, nil
-}
-
-// CreateIdentity генерирует новую пару ключей, сохраняет в БД и активирует сессию.
-// Возвращает peerID (hex публичного ключа).
-func (s *IdentityService) CreateIdentity(passphrase string) (string, error) {
-	const op = "IdentityService.CreateIdentity"
-
-	// Проверяем что сессия ещё не активна ДО генерации и записи в БД,
-	// иначе повторный вызов перезапишет identity в БД но упадёт на sess.Set
-	if s.sess.IsActive() {
-		return "", fmt.Errorf("%s: session: %w", op, session.ErrAlreadySet)
-	}
-
-	priv, pub, err := identity.Generate()
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", op, err)
-	}
-
-	if err := s.sess.Set(priv, pub); err != nil {
-		return "", fmt.Errorf("%s: session: %w", op, err)
-	}
-
-	_, err = s.store.DB().Exec(
-		"INSERT OR REPLACE INTO identity (id, private_key, public_key) VALUES (1, ?, ?)",
-		[]byte(priv), []byte(pub),
-	)
-	if err != nil {
-		s.sess.Clear()
-		return "", fmt.Errorf("%s: save: %w", op, err)
-	}
-
-	peerID := identity.PeerID(pub)
-	s.log.Info("Identity created", slog.String("peer_id", identity.ShortID(pub)))
-
-	// Принудительный checkpoint WAL — identity не должен теряться при kill процесса
-	if err := s.store.Checkpoint(); err != nil {
-		s.log.Warn("checkpoint после создания identity не удался", slog.String("error", err.Error()))
-	}
-
-	return peerID, nil
 }
 
 // LoadIdentity загружает идентичность из БД и активирует сессию.
@@ -114,67 +74,6 @@ func (s *IdentityService) LoadIdentity() (string, error) {
 
 	peerID := identity.PeerID(pub)
 	s.log.Info("Identity loaded", slog.String("peer_id", identity.ShortID(pub)))
-	return peerID, nil
-}
-
-// ExportKey шифрует приватный ключ + ключ БД passphrase и возвращает строку vox-key://...
-func (s *IdentityService) ExportKey(passphrase string) (string, error) {
-	priv, err := s.sess.PrivateKey()
-	if err != nil {
-		return "", fmt.Errorf("ExportKey: %w", err)
-	}
-
-	// Читаем ключ шифрования БД для включения в бэкап
-	dbKeyPath := filepath.Join(s.dataDir, "vox.key")
-	dbKey, err := identity.LoadOrCreateDBKey(dbKeyPath)
-	if err != nil {
-		return "", fmt.Errorf("ExportKey: load db key: %w", err)
-	}
-
-	return identity.Export(priv, dbKey, passphrase)
-}
-
-// ImportKey импортирует ключ из строки vox-key://..., сохраняет в БД, активирует сессию.
-// Если бэкап содержит ключ БД (новый формат) — восстанавливает vox.key.
-func (s *IdentityService) ImportKey(keyStr, passphrase string) (string, error) {
-	const op = "IdentityService.ImportKey"
-
-	priv, pub, dbKey, err := identity.Import(keyStr, passphrase)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", op, err)
-	}
-
-	// Если бэкап содержит ключ БД — восстанавливаем vox.key
-	if len(dbKey) > 0 {
-		dbKeyPath := filepath.Join(s.dataDir, "vox.key")
-		encoded := hex.EncodeToString(dbKey)
-		if err := os.WriteFile(dbKeyPath, []byte(encoded), 0600); err != nil {
-			s.log.Warn("не удалось восстановить vox.key", slog.String("error", err.Error()))
-		} else {
-			s.log.Info("vox.key восстановлен из бэкапа")
-		}
-	}
-
-	_, err = s.store.DB().Exec(
-		"INSERT OR REPLACE INTO identity (id, private_key, public_key) VALUES (1, ?, ?)",
-		[]byte(priv), []byte(pub),
-	)
-	if err != nil {
-		return "", fmt.Errorf("%s: save: %w", op, err)
-	}
-
-	if err := s.sess.Set(priv, pub); err != nil {
-		return "", fmt.Errorf("%s: session: %w", op, err)
-	}
-
-	peerID := identity.PeerID(pub)
-	s.log.Info("Identity imported", slog.String("peer_id", identity.ShortID(pub)))
-
-	// Принудительный checkpoint WAL — identity не должен теряться при kill процесса
-	if err := s.store.Checkpoint(); err != nil {
-		s.log.Warn("checkpoint после импорта identity не удался", slog.String("error", err.Error()))
-	}
-
 	return peerID, nil
 }
 

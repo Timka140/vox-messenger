@@ -64,3 +64,6 @@ coverage.out
 # OS
 .DS_Store
 Thumbs.db
+
+# Кэш wrangler (Cloudflare CLI)
+.wrangler/

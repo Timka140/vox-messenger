@@ -299,33 +299,6 @@ document.querySelectorAll("#settings-screen [data-sound-event]").forEach(functio
     });
 });
 
-// Key Export
-document.getElementById("export-key-btn").addEventListener("click", async function () {
-    var passphrase = document.getElementById("export-passphrase").value.trim();
-    if (!passphrase) {
-        document.getElementById("export-passphrase").focus();
-        return;
-    }
-    try {
-        var keyStr = await svc("ExportKey", passphrase);
-        document.getElementById("export-key-output").value = keyStr;
-        document.getElementById("export-result").style.display = "block";
-    } catch (err) {
-        console.error("export key:", err);
-    }
-});
-
-document.getElementById("export-copy-btn").addEventListener("click", function () {
-    navigator.clipboard.writeText(document.getElementById("export-key-output").value);
-    this.innerHTML = '<i data-lucide="check" class="icon-18"></i>';
-    if (window.lucide) lucide.createIcons({ nodes: [this] });
-    var btn = this;
-    setTimeout(function () {
-        btn.innerHTML = '<i data-lucide="copy" class="icon-18"></i>';
-        if (window.lucide) lucide.createIcons({ nodes: [btn] });
-    }, 1500);
-});
-
 async function loadSignalServers() {
     try {
         var servers = await svc("GetSignalServers");

@@ -11,8 +11,8 @@ var _routes = {
     // AppService
     LogFrontend: "AppService", Notify: "AppService", IsRecoveryMode: "AppService",
     // IdentityService
-    HasIdentity: "IdentityService", CreateIdentity: "IdentityService", LoadIdentity: "IdentityService",
-    ExportKey: "IdentityService", ImportKey: "IdentityService",
+    HasIdentity: "IdentityService", LoadIdentity: "IdentityService",
+    NewMnemonic: "IdentityService", ApplyMnemonic: "IdentityService", CopyMnemonic: "IdentityService",
     GetMyID: "IdentityService", GetMyShortID: "IdentityService", GetMyTag: "IdentityService",
     GetNickname: "IdentityService", SetNickname: "IdentityService", GetMyContactURI: "IdentityService",
     SaveSetting: "IdentityService", GetSetting: "IdentityService",
@@ -170,12 +170,15 @@ export function svc(method) {
         GetMicLevel: 1
     };
     var quiet = _quietMethods[method];
+    // Секретная фраза не должна попадать даже в консоль.
+    var secret = method === "NewMnemonic" || method === "ApplyMnemonic" || method === "CopyMnemonic";
 
     var callId = ++_svcCallId;
     var t0 = performance.now();
 
     if (!quiet) {
         var argsPreview = args.map(function (a) {
+            if (secret) return "***";
             if (typeof a === "string" && a.length > 60) return a.substring(0, 60) + "...";
             return a;
         });
@@ -188,7 +191,7 @@ export function svc(method) {
                 var dt = (performance.now() - t0).toFixed(1);
                 var preview = "";
                 try {
-                    var s = JSON.stringify(result);
+                    var s = secret ? "***" : JSON.stringify(result);
                     preview = s && s.length > 120 ? s.substring(0, 120) + "..." : s;
                 } catch (e) { preview = String(result); }
                 _origLog("[SVC #" + callId + "] ← " + method + " OK (" + dt + "ms) " + preview);
@@ -309,8 +312,6 @@ export var dom = {
     setupScreen: document.getElementById("setup-screen"),
     recoveryScreen: document.getElementById("recovery-screen"),
     appDiv: document.getElementById("app"),
-    generateBtn: document.getElementById("generate-btn"),
-    setupError: document.getElementById("setup-error"),
     contactsList: document.getElementById("contacts-list"),
     chatHeader: document.getElementById("chat-header"),
     chatPeerName: document.getElementById("chat-peer-name"),

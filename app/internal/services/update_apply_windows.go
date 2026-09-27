@@ -65,7 +65,7 @@ func allowSetForegroundWindow(pid int) error {
 // 1. Rename текущего exe → exe.old-<prev> (Windows позволяет rename работающего exe)
 // 2. Copy pending → exe (не rename — staging может быть на другом volume)
 // 3. Start нового exe в отдельной process group
-// 4. Возврат — main.go получит nexus:update-applied и вызовет app.Quit()
+// 4. Возврат — UpdateService вызовет quit (main.go: app.Quit())
 //
 // Failure recovery: если copy упал после rename — пытаемся rename обратно.
 func applyUpdatePlatform(log *slog.Logger, exe, pending, prevVersion string) error {

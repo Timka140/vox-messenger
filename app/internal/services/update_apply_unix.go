@@ -41,14 +41,11 @@ func applyUpdatePlatform(log *slog.Logger, exe, pending, prevVersion string) err
 	log.Info("update: new binary in place, starting new process",
 		slog.String("exe", exe))
 
-	parentPid := strconv.Itoa(os.Getpid())
-	cmd := exec.Command(exe, updateRelaunchFlagUnix, updateWaitPidFlagUnix, parentPid)
-	if err := cmd.Start(); err != nil {
+	if _, err := startDetached(exe); err != nil {
 		_ = os.Remove(exe)
 		_ = os.Rename(backup, exe)
 		return fmt.Errorf("start new exe: %w", err)
 	}
-	_ = cmd.Process.Release()
 	return nil
 }
 
@@ -72,12 +69,9 @@ func rollbackUpdatePlatform(log *slog.Logger, exe, backup, currentVersion string
 		slog.String("exe", exe),
 		slog.String("failed_kept_at", failed))
 
-	parentPid := strconv.Itoa(os.Getpid())
-	cmd := exec.Command(exe, updateRelaunchFlagUnix, updateWaitPidFlagUnix, parentPid)
-	if err := cmd.Start(); err != nil {
+	if _, err := startDetached(exe); err != nil {
 		return fmt.Errorf("start restored exe: %w", err)
 	}
-	_ = cmd.Process.Release()
 	return nil
 }
 
@@ -96,4 +90,15 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
+}
+
+// startDetached запускает exe заново с --from-update --wait-pid <pid> (Unix).
+func startDetached(exe string) (int, error) {
+	cmd := exec.Command(exe, updateRelaunchFlagUnix, updateWaitPidFlagUnix, strconv.Itoa(os.Getpid()))
+	if err := cmd.Start(); err != nil {
+		return 0, err
+	}
+	pid := cmd.Process.Pid
+	_ = cmd.Process.Release()
+	return pid, nil
 }
