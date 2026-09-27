@@ -99,6 +99,10 @@ func TestApplyMnemonicRestoresBackupViaSwap(t *testing.T) {
 	if _, err := s.ApplyMnemonic(phrase, false); err != nil {
 		t.Fatal(err)
 	}
+	// Повтор (двойная отправка) не трогает уже готовые файлы подмены.
+	if _, err := s.ApplyMnemonic(phrase, false); err == nil || err.Error() != mnemonicErrBusy {
+		t.Fatalf("повтор: ожидали %s, получили %v", mnemonicErrBusy, err)
+	}
 	store.Close()
 	if !relaunched {
 		t.Fatal("перезапуска не было")

@@ -156,6 +156,9 @@ func main() {
 		removeDBFiles(filepath.Join(dataDir, "vox.db.bak"))
 	case swap == storage.SwapResumed:
 		logger.Warn("прерванная подмена базы доведена до конца")
+		// Как и при SwapApplied: если это было восстановление фразой, .bak уже
+		// лежит внутри подменённой базы.
+		removeDBFiles(filepath.Join(dataDir, "vox.db.bak"))
 	case swap == storage.SwapPartial:
 		logger.Warn("найдена половина подготовленной перешифровки базы — удалена")
 	}
@@ -222,12 +225,20 @@ func main() {
 	// профиль» перезаписал бы его ключ.
 	if _, bakErr := os.Stat(bakPath); bakErr == nil {
 		var n int
-		if err := store.DB().QueryRow("SELECT COUNT(*) FROM identity").Scan(&n); err != nil {
-			log.Fatal("Storage error (проверка профиля): ", err)
-		}
-		if n == 0 {
+		switch err := store.DB().QueryRow("SELECT COUNT(*) FROM identity").Scan(&n); {
+		case err != nil:
+			// Профиль не проверить — экран восстановления не включаем: ошибку
+			// покажет загрузка профиля, а ApplyMnemonic на той же проверке откажет.
+			logger.Error("проверка профиля рядом с .bak не удалась", slog.String("error", err.Error()))
+		case n == 0:
 			recoveryMode = true
-		} else {
+		case storage.KeyOpens(bakPath, dbKey):
+			// Текущий ключ открывает .bak — это копия уже сделанного
+			// восстановления (не удалилась после подмены). Иначе при потере
+			// vox.key старт принял бы рабочую vox.db за пустую и удалил её.
+			removeDBFiles(bakPath)
+			logger.Info("удалена старая .bak, уже перенесённая в рабочую базу")
+		default:
 			logger.Warn("рядом с рабочей базой лежит старая .bak, не трогаю", slog.String("backup", bakPath))
 		}
 	}

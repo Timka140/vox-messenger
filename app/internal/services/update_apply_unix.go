@@ -41,7 +41,7 @@ func applyUpdatePlatform(log *slog.Logger, exe, pending, prevVersion string) err
 	log.Info("update: new binary in place, starting new process",
 		slog.String("exe", exe))
 
-	if _, err := startDetached(exe); err != nil {
+	if err := startDetached(exe); err != nil {
 		_ = os.Remove(exe)
 		_ = os.Rename(backup, exe)
 		return fmt.Errorf("start new exe: %w", err)
@@ -69,7 +69,7 @@ func rollbackUpdatePlatform(log *slog.Logger, exe, backup, currentVersion string
 		slog.String("exe", exe),
 		slog.String("failed_kept_at", failed))
 
-	if _, err := startDetached(exe); err != nil {
+	if err := startDetached(exe); err != nil {
 		return fmt.Errorf("start restored exe: %w", err)
 	}
 	return nil
@@ -92,16 +92,12 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
-// allowSetForegroundWindow — только Windows; на Unix окно поднимает сам процесс.
-func allowSetForegroundWindow(int) error { return nil }
-
 // startDetached запускает exe заново с --from-update --wait-pid <pid> (Unix).
-func startDetached(exe string) (int, error) {
+func startDetached(exe string) error {
 	cmd := exec.Command(exe, updateRelaunchFlagUnix, updateWaitPidFlagUnix, strconv.Itoa(os.Getpid()))
 	if err := cmd.Start(); err != nil {
-		return 0, err
+		return err
 	}
-	pid := cmd.Process.Pid
 	_ = cmd.Process.Release()
-	return pid, nil
+	return nil
 }

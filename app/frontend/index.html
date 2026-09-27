@@ -117,6 +117,13 @@
                 <h2 data-i18n="setup.creating.title">Creating profile…</h2>
                 <p id="setup-creating-desc" data-i18n="setup.creating.desc">Vox will restart. This takes a few seconds.</p>
             </div>
+
+            <!-- Профиль в базе есть, но не загружается: создание поверх него запрещено -->
+            <div id="setup-step-broken" class="setup-step setup-step-center" hidden>
+                <h2 data-i18n="setup.broken.title">Profile won't load</h2>
+                <p data-i18n="setup.broken.desc">The profile on this device is damaged. Vox won't replace it with a new one, so you don't lose it.</p>
+                <p id="setup-broken-error" class="setup-error"></p>
+            </div>
         </div>
     </div>
 

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
+
 	"vox_app/internal/logsafe"
 	"vox_app/internal/identity"
 	"vox_app/internal/session"
@@ -19,6 +21,11 @@ type IdentityService struct {
 	dataDir string
 	network *NetworkService
 	quit    func() // завершение процесса после перезапуска (SetQuit)
+
+	// applyMu — один ApplyMnemonic за раз; applied — файлы подмены уже
+	// готовы и процесс перезапускается, новые вызовы их не трогают.
+	applyMu sync.Mutex
+	applied bool
 }
 
 // NewIdentityService принимает network для UpdateNickTag + BroadcastNicknameUpdate

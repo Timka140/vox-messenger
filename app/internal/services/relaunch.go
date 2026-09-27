@@ -14,14 +14,8 @@ var relaunchSelf = func() error {
 	if err != nil {
 		return fmt.Errorf("relaunch: executable: %w", err)
 	}
-	pid, err := startDetached(exe)
-	if err != nil {
+	if err := startDetached(exe); err != nil {
 		return fmt.Errorf("relaunch: start: %w", err)
-	}
-	// Как при автообновлении: без этого окно нового процесса на Windows
-	// открывается под другими окнами. Ошибка не мешает перезапуску.
-	if pid > 0 {
-		_ = allowSetForegroundWindow(pid)
 	}
 	return nil
 }

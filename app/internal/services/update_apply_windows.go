@@ -23,7 +23,12 @@ const updateWaitPidFlag = "--wait-pid"
 // Передаёт PID текущего процесса как `--wait-pid <N>` — новый exe ждёт пока
 // мы реально умрём, прежде чем открывать БД (иначе race на WAL lock,
 // см. main.go waitForParentExit).
-func startDetached(exe string) (int, error) {
+//
+// Право на foreground выдаётся всем (ASFW_ANY) до запуска: PID здесь есть
+// только у промежуточного cmd.exe, который завершается сразу, а без права
+// окно нового процесса откроется под другими окнами.
+func startDetached(exe string) error {
+	_ = allowSetForegroundWindow(asfwAny)
 	parentPid := strconv.Itoa(os.Getpid())
 	// Кавычки вокруг "" — это title параметр для start (обязательный когда есть кавычки в exe пути)
 	cmd := exec.Command("cmd.exe", "/C", "start", "", "/B", exe, updateRelaunchFlag, updateWaitPidFlag, parentPid)
@@ -32,19 +37,17 @@ func startDetached(exe string) (int, error) {
 		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 	if err := cmd.Start(); err != nil {
-		return 0, err
-	}
-	pid := 0
-	if cmd.Process != nil {
-		pid = cmd.Process.Pid
+		return err
 	}
 	_ = cmd.Wait() // start сразу возвращается — Wait очищает zombie cmd.exe
-	return pid, nil
+	return nil
 }
 
-// allowSetForegroundWindow разрешает целевому процессу (PID) забрать foreground
-// в обход стандартных Windows-ограничений. Без этого новый exe после
-// автообновления откроется на заднем плане под другими окнами.
+// asfwAny — ASFW_ANY: право на foreground получает любой процесс.
+const asfwAny = -1
+
+// allowSetForegroundWindow разрешает процессу (PID или asfwAny) забрать
+// foreground в обход стандартных Windows-ограничений.
 func allowSetForegroundWindow(pid int) error {
 	user32, err := syscall.LoadDLL("user32.dll")
 	if err != nil {
@@ -94,19 +97,12 @@ func applyUpdatePlatform(log *slog.Logger, exe, pending, prevVersion string) err
 		slog.String("exe", exe))
 
 	// Step 3: запускаем через cmd /C start — полностью независимый процесс
-	pid, err := startDetached(exe)
-	if err != nil {
+	if err := startDetached(exe); err != nil {
 		_ = os.Remove(exe)
 		_ = os.Rename(backup, exe)
 		return fmt.Errorf("start new exe: %w", err)
 	}
-	log.Info("update: new process started", slog.Int("intermediary_pid", pid))
-	// Разрешаем foreground для интермедиара cmd.exe (он передаст право child через CreateProcess)
-	if pid > 0 {
-		if err := allowSetForegroundWindow(pid); err != nil {
-			log.Debug("AllowSetForegroundWindow failed (non-fatal)", slog.String("error", err.Error()))
-		}
-	}
+	log.Info("update: new process started")
 	return nil
 }
 
@@ -131,14 +127,8 @@ func rollbackUpdatePlatform(log *slog.Logger, exe, backup, currentVersion string
 		slog.String("exe", exe),
 		slog.String("failed_kept_at", failed))
 
-	pid, err := startDetached(exe)
-	if err != nil {
+	if err := startDetached(exe); err != nil {
 		return fmt.Errorf("start restored exe: %w", err)
-	}
-	if pid > 0 {
-		if err := allowSetForegroundWindow(pid); err != nil {
-			log.Debug("AllowSetForegroundWindow failed (non-fatal)", slog.String("error", err.Error()))
-		}
 	}
 	return nil
 }

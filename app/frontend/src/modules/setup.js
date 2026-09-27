@@ -23,7 +23,14 @@ export async function init() {
 
         var hasIdent = await svc("HasIdentity");
         if (hasIdent) {
-            state.myID = await svc("LoadIdentity");
+            try {
+                state.myID = await svc("LoadIdentity");
+            } catch (err) {
+                // Экран создания тут — тупик: ApplyMnemonic откажет profile_exists.
+                flog("ERR", "frontend.init", "identity exists but failed to load: " + err);
+                showBroken(err);
+                return;
+            }
             voiceState.init(state.myID);
             flog("INF", "frontend.init", "identity loaded: " + state.myID.substring(0, 16));
             showChat();
@@ -36,6 +43,12 @@ export async function init() {
         console.error("init error:", err);
         showSetup();
     }
+}
+
+function showBroken(err) {
+    showScreen("setup");
+    showStep("setup", "broken");
+    $("setup-broken-error").textContent = String(err && err.message || err);
 }
 
 function showSetup() {
