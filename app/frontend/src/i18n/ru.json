@@ -545,6 +545,7 @@
   "select.delete_title": "Удалить сообщения ({n})?",
   "select.delete_me": "Удалить у меня",
   "select.delete_all": "Удалить у всех",
+  "select.delete_others_note": "Среди выбранных есть чужие сообщения, поэтому удалить можно только у себя.",
   "select.copied": "Скопировано",
   "select.copy_hint": "Копировать (Ctrl+C)",
   "select.delete_hint": "Удалить (Delete)",

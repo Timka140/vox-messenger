@@ -545,6 +545,7 @@
   "select.delete_title": "Delete messages ({n})?",
   "select.delete_me": "Delete for me",
   "select.delete_all": "Delete for everyone",
+  "select.delete_others_note": "The selection includes other people's messages, so you can only delete for yourself.",
   "select.copied": "Copied",
   "select.copy_hint": "Copy (Ctrl+C)",
   "select.delete_hint": "Delete (Delete)",
