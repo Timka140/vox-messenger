@@ -152,7 +152,7 @@
 }
 
 .attach-file-action.is-cancel {
-    color: var(--red, #e53935);
+    color: var(--red-text);
 }
 
 .attach-file-action.is-cancel:hover {
@@ -392,8 +392,8 @@
 }
 
 .message-row.outbound .attach-files.is-stacked {
-    background: rgba(255, 255, 255, 0.10);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.10);
+    border-color: rgba(0, 0, 0, 0.12);
 }
 
 .attach-file {
@@ -420,7 +420,7 @@
 }
 
 .message-row.outbound .attach-files.is-stacked .attach-file:not(:last-child) {
-    border-bottom-color: rgba(255, 255, 255, 0.12);
+    border-bottom-color: rgba(0, 0, 0, 0.12);
 }
 
 .attach-files.is-stacked .attach-file-icon {
@@ -434,8 +434,8 @@
 }
 
 .message-row.outbound .attach-file {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.10);
+    border-color: rgba(0, 0, 0, 0.12);
 }
 
 .attach-file-icon {
@@ -500,7 +500,7 @@
 
 .message-row.outbound .attach-file-size {
     color: var(--bubble-out-text);
-    opacity: 0.7;
+    opacity: 0.85;
 }
 
 .attach-file-action {
@@ -662,7 +662,7 @@
 }
 .im-tab:hover { background: var(--input-bg); }
 .im-tab.active { background: var(--accent); color: var(--accent-btn-text); }
-.im-tab-count { font-size: 12px; opacity: 0.65; }
+.im-tab-count { font-size: 12px; opacity: 0.85; }
 .im-spacer { flex: 1; }
 .im-bar .ip-icon-btn { width: 28px; height: 28px; }
 .im-search {
@@ -764,8 +764,8 @@
 
 .media-clear-btn:hover {
     background: rgba(229, 57, 53, 0.1);
-    color: var(--red, #e53935);
-    border-color: var(--red, #e53935);
+    color: var(--red-text);
+    border-color: var(--red-text);
 }
 
 

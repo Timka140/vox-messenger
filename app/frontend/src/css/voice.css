@@ -99,7 +99,7 @@
 
 .record-btn:hover {
     background: var(--input-bg);
-    color: var(--red);
+    color: var(--red-text);
 }
 
 /* ========== VOICE BUBBLE (Telegram-style) ========== */
@@ -225,7 +225,7 @@
 }
 
 .voice-channel-item.active .voice-channel-icon {
-    color: var(--green, #4caf50);
+    color: var(--green-text);
 }
 
 .voice-channel-body {
@@ -273,7 +273,7 @@
 }
 
 .voice-action-btn.muted {
-    color: var(--red);
+    color: var(--red-text);
 }
 
 .voice-disconnect:hover {
@@ -301,7 +301,7 @@
     -webkit-appearance: none;
     appearance: none;
     height: 4px;
-    background: var(--border);
+    background: var(--control-track);
     border-radius: 2px;
     outline: none;
 }

@@ -31,11 +31,11 @@
 }
 
 .context-menu-item.danger {
-    color: var(--red);
+    color: var(--red-text);
 }
 
 .context-menu-item.danger i, .context-menu-item.danger svg {
-    color: var(--red);
+    color: var(--red-text);
 }
 
 .context-menu-sep {
@@ -65,7 +65,7 @@
     width: 30px;
     height: 16px;
     border-radius: 8px;
-    background: var(--border);
+    background: var(--control-track);
     position: relative;
     flex-shrink: 0;
     transition: background 0.15s;
@@ -81,7 +81,7 @@
     background: #fff;
     transition: left 0.15s;
 }
-.context-menu-toggle.on { background: var(--green); }
+.context-menu-toggle.on { background: var(--accent); }
 
 /* Кружок цвета вместо иконки (выбор «Цвет чата») */
 .context-menu-swatch {

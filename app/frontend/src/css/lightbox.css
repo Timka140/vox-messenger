@@ -8,6 +8,7 @@
     inset: 0;
     z-index: 500;
     background: rgba(0, 0, 0, 0.92);
+    --accent: #A3DAC5; /* оверлей тёмный в обеих темах */
     display: none;
     animation: lightbox-fade-in var(--dur-base) ease-out;
 }

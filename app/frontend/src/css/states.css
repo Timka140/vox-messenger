@@ -155,7 +155,7 @@
 }
 
 .signal-banner .sb-icon {
-    color: #faa61a;
+    color: var(--yellow-text);
     flex-shrink: 0;
 }
 

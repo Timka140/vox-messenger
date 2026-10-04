@@ -209,10 +209,10 @@ export function registerEvents() {
             var online = servers && servers.some(function (s) { return s.online; });
             if (online) {
                 dom.statusEl.textContent = t("chat.online");
-                dom.statusEl.style.color = "var(--green)";
+                dom.statusEl.style.color = "var(--green-text)";
             } else {
                 dom.statusEl.textContent = t("chat.offline");
-                dom.statusEl.style.color = "var(--yellow)";
+                dom.statusEl.style.color = "var(--yellow-text)";
             }
         });
         var networkTab = document.getElementById("settings-tab-network");

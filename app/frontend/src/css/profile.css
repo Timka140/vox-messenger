@@ -41,7 +41,7 @@
 .contacts-stack-avatar + .contacts-stack-avatar { margin-left: -8px; }
 .nav-badge.static { position: static; flex-shrink: 0; }
 .contact-avatar.is-offline { opacity: 0.85; }
-.contact-preview.is-online { color: var(--green); }
+.contact-preview.is-online { color: var(--green-text); }
 
 .contacts-empty-card {
     margin: 24px 16px;
@@ -110,7 +110,7 @@
 }
 .profile-name { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
 .profile-tag { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
-.profile-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--green); }
+.profile-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--green-text); }
 .profile-status.muted { color: var(--text-secondary); }
 .profile-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 .profile-dot.off { background: var(--text-muted); }
@@ -136,7 +136,7 @@
 }
 .profile-btn.pri { background: var(--accent); color: var(--accent-btn-text); }
 .profile-btn.sec { background: transparent; border-color: var(--border); color: var(--text-primary); }
-.profile-btn.dng { background: transparent; border-color: var(--border); color: var(--red); }
+.profile-btn.dng { background: transparent; border-color: var(--border); color: var(--red-text); }
 .profile-btn.small { height: 32px; padding: 0 12px; font-size: 12px; margin-top: 8px; }
 .profile-btn:hover { filter: brightness(1.08); }
 .profile-btn:disabled { opacity: 0.6; cursor: default; }
@@ -184,7 +184,7 @@
     color: var(--text-secondary);
 }
 .profile-call-row svg { color: var(--text-secondary); flex-shrink: 0; }
-.profile-call-row svg.missed { color: var(--red); }
+.profile-call-row svg.missed { color: var(--red-text); }
 .profile-call-kind { color: var(--text-primary); width: 120px; }
 .profile-call-when { flex: 1; }
 .profile-call-dur { font-variant-numeric: tabular-nums; }

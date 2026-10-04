@@ -376,7 +376,16 @@ export function colorFromId(hexStr) {
         h = hexStr.charCodeAt(i) + ((h << 5) - h);
     }
     var hue = ((h % 360) + 360) % 360;
-    return "hsl(" + hue + ", 55%, 55%)";
+    return "hsl(" + hue + ", 55%, " + avatarLightness(hue) + "%)";
+}
+
+// Яркость аватара по оттенку (шаг 30°, между точками — линейно): при общих 55%
+// белые инициалы на жёлтых и зелёных не читались (контраст ~2), так — не ниже 3.
+// Копии функции — в notify.html и incoming-call.html.
+var AVATAR_L = [55, 50, 38, 40, 43, 42, 40, 52, 55, 55, 55, 55];
+function avatarLightness(hue) {
+    var i = Math.floor(hue / 30), f = (hue % 30) / 30;
+    return Math.round(AVATAR_L[i] + (AVATAR_L[(i + 1) % 12] - AVATAR_L[i]) * f);
 }
 
 export function formatTime(timestamp) {

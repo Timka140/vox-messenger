@@ -477,7 +477,7 @@ if (connImportBtn) {
             flog("INF", "frontend.settings", "connection config imported");
         } catch (err) {
             statusEl.textContent = t("settings.connconfig.import_error") + ": " + err;
-            statusEl.style.color = "var(--danger)";
+            statusEl.style.color = "var(--red-text)";
             statusEl.style.display = "block";
             flog("ERR", "frontend.settings", "import failed: " + err);
         }
