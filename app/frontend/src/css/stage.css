@@ -46,9 +46,9 @@
 }
 .stage-sep { color: var(--text-muted); }
 .stage-timer { font-variant-numeric: tabular-nums; }
-.stage-signal { color: var(--green); margin-left: 2px; }
-.stage-signal.fair { color: var(--yellow); }
-.stage-signal.bad { color: var(--red); }
+.stage-signal { color: var(--green-text); margin-left: 2px; }
+.stage-signal.fair { color: var(--yellow-text); }
+.stage-signal.bad { color: var(--red-text); }
 .stage-header-actions { display: flex; align-items: center; gap: 2px; }
 .stage-invite-btn {
     width: auto;
@@ -201,7 +201,7 @@
     max-width: 100%;
 }
 .stage-person-name .me { color: var(--text-secondary); font-weight: 400; }
-.stage-person.is-speaking .stage-person-name { color: var(--green); }
+.stage-person.is-speaking .stage-person-name { color: var(--green-text); }
 .stage-person-state { font-size: 11px; color: var(--text-secondary); min-height: 14px; }
 
 /* --- Лента участников (только при демонстрации) --- */
@@ -229,7 +229,8 @@
 }
 .stage-tile.is-speaking { border: 2px solid var(--green); }
 .stage-tile.on-stage { border-color: var(--accent); }
-.stage-tile.is-share { background: #000; }
+/* Плитка демонстрации чёрная в обеих темах — подписи на ней берут токены тёмной темы */
+.stage-tile.is-share { background: #000; --text-secondary: #b3b9c3; --accent: #A3DAC5; --green-text: #57cc95; --red-text: #fa8585; }
 .stage-tile canvas.stage-tile-preview { width: 100%; height: 100%; object-fit: contain; display: block; }
 .stage-tile.is-share::after {
     content: "";
@@ -318,8 +319,8 @@
     font-weight: 600;
     align-items: center;
 }
-.stage-tile-state .red { color: var(--red); }
-.stage-tile-state .green { color: var(--green); }
+.stage-tile-state .red { color: var(--red-text); }
+.stage-tile-state .green { color: var(--green-text); }
 .stage-tile-state .on-stage-lbl { color: var(--accent); }
 .stage-tile.more {
     width: 68px;
@@ -509,11 +510,11 @@
 .stage-prow-name .me { font-size: 11px; color: var(--text-muted); font-weight: 400; }
 .stage-prow-state { font-size: 11px; color: var(--text-secondary); }
 .stage-prow-state.accent { color: var(--accent); }
-.stage-prow-state.green { color: var(--green); }
+.stage-prow-state.green { color: var(--green-text); }
 .stage-prow-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; color: var(--text-secondary); }
 .stage-prow-right .accent { color: var(--accent); }
-.stage-prow-right .red { color: var(--red); }
-.stage-prow-right .green { color: var(--green); }
+.stage-prow-right .red { color: var(--red-text); }
+.stage-prow-right .green { color: var(--green-text); }
 .stage-prow-vol { font-size: 11px; font-family: var(--font-mono, monospace); }
 .stage-prow-more {
     width: 24px;
@@ -625,4 +626,4 @@
     text-transform: uppercase;
 }
 .stage-self-mic { position: absolute; right: 8px; bottom: 7px; color: var(--text-secondary); }
-.stage-self-mic.red { color: var(--red); }
+.stage-self-mic.red { color: var(--red-text); }

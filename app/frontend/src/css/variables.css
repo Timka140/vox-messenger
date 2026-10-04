@@ -8,33 +8,39 @@
     --input-bg: #f3f4f6;
 
     /* ---------- Bubbles ---------- */
-    --bubble-out: #5DB5A6;       /* mint — default, per-chat theme overrides */
+    --bubble-out: #257467;       /* mint — default, per-chat theme overrides */
     --bubble-out-text: #ffffff;
     --bubble-in: #ffffff;
     --bubble-in-text: #1a1a1a;
 
     /* ---------- Text ---------- */
     --text-primary: #1a1a1a;
-    --text-secondary: #6b7280;
-    --text-muted: #9ca3af;
+    --text-secondary: #4b5563;
+    --text-muted: #606673;
 
     /* ---------- Accent (Vox mint) ---------- */
-    --accent: #5DB5A6;
-    --accent-hover: #4fa396;
+    --accent: #257467;
+    --accent-hover: #206559;
     --accent-btn-text: #ffffff;
-    --accent-soft: rgba(93, 181, 166, 0.15);  /* focus halo, soft fills */
+    --accent-soft: rgba(37, 116, 103, 0.15);  /* focus halo, soft fills */
 
     /* ---------- Borders ---------- */
-    --border: #e5e7eb;
+    --border: #d9dce2;
+    --control-track: #b4bac4;    /* дорожки тумблеров и ползунков */
 
     /* ---------- Semantic ---------- */
     --green: #22c55e;
-    --red: #ef4444;
+    --red: #dc2626;
     --yellow: #eab308;
+    /* Те же цвета для текста и значков: на светлом фоне яркие не читаются */
+    --green-text: #167a3b;
+    --red-text: #c81e1e;
+    --yellow-text: #92580a;
+    --on-green: #0f2a1a;         /* текст на зелёной заливке */
 
     /* ---------- Contact list states ---------- */
     --contact-hover: #f3f4f6;
-    --contact-active: rgba(93, 181, 166, 0.15);
+    --contact-active: rgba(37, 116, 103, 0.15);
     --contact-active-text: #1a1a1a;
     --contact-active-muted: #4a5568;
 

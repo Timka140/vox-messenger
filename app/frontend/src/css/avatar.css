@@ -58,7 +58,7 @@
     border-radius: 50%;
     border: 2px solid var(--bg-panel);
     background: var(--accent);
-    color: #1a2a22;
+    color: var(--accent-btn-text);
     display: flex;
     align-items: center;
     justify-content: center;

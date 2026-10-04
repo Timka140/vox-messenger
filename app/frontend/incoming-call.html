@@ -13,22 +13,24 @@
         :root {
             --bg-panel: #ffffff;
             --text-primary: #1a1a1a;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --border: #e5e7eb;
-            --accent: #5DB5A6;
+            --text-secondary: #4b5563;
+            --text-muted: #606673;
+            --border: #d9dce2;
+            --accent: #257467;
             --green: #22c55e;
-            --red: #ef4444;
+            --red: #dc2626;
+            --red-text: #c81e1e;
         }
         html[data-theme="dark"] {
             --bg-panel: #2E323B;
             --text-primary: #e8eaed;
-            --text-secondary: #8b929e;
-            --text-muted: #636a76;
-            --border: #3A3E47;
+            --text-secondary: #b3b9c3;
+            --text-muted: #9aa1ad;
+            --border: #434854;
             --accent: #A3DAC5;
             --green: #43b581;
-            --red: #f04747;
+            --red: #e03131;
+            --red-text: #fa8585;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; overflow: hidden; }
@@ -69,7 +71,7 @@
         .name { font-size: 16px; font-weight: 700; }
         .sub { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
         .sub svg { width: 12px; height: 12px; }
-        .sub.busy { color: var(--red); }
+        .sub.busy { color: var(--red-text); }
         .actions { display: flex; gap: 10px; width: 100%; margin-top: 4px; --wails-draggable: no-drag; }
         .btn {
             flex: 1;
@@ -140,7 +142,11 @@
         function colorFromId(hexStr) {
             let h = 0;
             for (let i = 0; i < hexStr.length && i < 8; i++) h = hexStr.charCodeAt(i) + ((h << 5) - h);
-            return "hsl(" + ((h % 360 + 360) % 360) + ", 55%, 55%)";
+            const hue = (h % 360 + 360) % 360;
+            // яркость по оттенку — копия avatarLightness из core.js
+            const L = [55, 50, 38, 40, 43, 42, 40, 52, 55, 55, 55, 55];
+            const i = Math.floor(hue / 30), f = (hue % 30) / 30;
+            return "hsl(" + hue + ", 55%, " + Math.round(L[i] + (L[(i + 1) % 12] - L[i]) * f) + "%)";
         }
         function render() {
             $("avatar").textContent = nickname.substring(0, 2);

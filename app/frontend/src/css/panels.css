@@ -104,8 +104,8 @@
 }
 
 /* Voice header button active state */
-#voice-join-btn { color: var(--green, #4caf50); }
-#voice-join-btn.active { color: var(--red); }
+#voice-join-btn { color: var(--green-text); }
+#voice-join-btn.active { color: var(--red-text); }
 #voice-join-btn .voice-count {
     font-size: 10px;
     margin-left: 2px;
@@ -178,7 +178,7 @@
     white-space: nowrap;
 }
 .ip-status { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-.ip-status.online { color: var(--green); }
+.ip-status.online { color: var(--green-text); }
 .ip-sub { font-size: 12px; color: var(--text-secondary); }
 .ip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
 .ip-dot.off { background: transparent; border: 1.5px solid var(--text-muted); box-sizing: border-box; }
@@ -244,13 +244,13 @@ button.ip-row.static:hover { background: transparent; }
 .ip-row-label { flex-shrink: 0; }
 .ip-row-value { margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
 .ip-row-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ip-row.danger, .ip-row.danger > svg { color: var(--red); }
+.ip-row.danger, .ip-row.danger > svg { color: var(--red-text); }
 .ip-row .profile-mesh-input { width: 96px; }
 
 /* Тумблер строки «Уведомления» — как .toggle в макете */
-.ip-toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--border); position: relative; flex-shrink: 0; transition: background 0.15s; }
+.ip-toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--control-track); position: relative; flex-shrink: 0; transition: background 0.15s; }
 .ip-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left 0.15s; }
-.ip-toggle.on { background: var(--green); }
+.ip-toggle.on { background: var(--accent); }
 .ip-toggle.on::after { left: 18px; }
 
 .ip-exp-body, .ip-tech-body { display: flex; flex-direction: column; padding: 0 4px 6px 30px; }
@@ -291,7 +291,7 @@ button.ip-row.static:hover { background: transparent; }
     background: rgba(67, 181, 129, 0.08);
     border: 1px solid rgba(67, 181, 129, 0.25);
 }
-.ip-voice > svg { color: var(--green); flex-shrink: 0; }
+.ip-voice > svg { color: var(--green-text); flex-shrink: 0; }
 .ip-voice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ip-voice-title { font-size: 13px; color: var(--text-primary); }
 .ip-voice-sub { font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -315,14 +315,14 @@ button.ip-row.static:hover { background: transparent; }
     border: none;
     border-radius: 6px;
     background: var(--green);
-    color: #fff;
+    color: var(--on-green);
     font: inherit;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     flex-shrink: 0;
 }
-.ip-voice-btn.leave { background: var(--red); }
+.ip-voice-btn.leave { background: var(--red); color: #fff; }
 
 .ip-sec {
     display: flex;
@@ -366,8 +366,8 @@ button.ip-row.static:hover { background: transparent; }
 .ip-mem-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-primary); }
 .ip-mem-nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ip-mem-you { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
-.ip-badge { font-size: 10px; color: var(--accent); background: rgba(163, 218, 197, 0.15); padding: 1px 6px; border-radius: 3px; flex-shrink: 0; }
-.ip-mem-voice { color: var(--green); flex-shrink: 0; }
+.ip-badge { font-size: 10px; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 3px; flex-shrink: 0; }
+.ip-mem-voice { color: var(--green-text); flex-shrink: 0; }
 .ip-more-members {
     display: flex;
     align-items: center;
@@ -572,7 +572,7 @@ button.ip-row.static:hover { background: transparent; }
     text-align: right;
     padding: 2px 8px 0;
 }
-.mesh-chat-charcount.over { color: var(--red, #d33); }
+.mesh-chat-charcount.over { color: var(--red-text); }
 
 /* Pseudo-contact item for mesh broadcast in contacts list */
 .contact-item.is-mesh .contact-avatar {
@@ -670,7 +670,7 @@ label.toggle-switch input {
     position: absolute;
     cursor: pointer;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: var(--border);
+    background: var(--control-track);
     border-radius: 22px;
     transition: background 0.2s;
 }

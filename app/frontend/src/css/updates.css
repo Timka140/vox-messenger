@@ -301,8 +301,8 @@
     padding: 8px 12px;
     border-radius: 6px;
     font-size: 13px;
-    background: var(--bg-secondary, #2a2a2a);
-    color: var(--text-primary, #ddd);
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .settings-updates-status.is-checking {
@@ -311,16 +311,16 @@
 
 .settings-updates-status.is-ok {
     background: rgba(80, 180, 100, 0.15);
-    color: #7ed88f;
+    color: var(--green-text);
 }
 
 .settings-updates-status.is-available {
     background: rgba(80, 140, 220, 0.18);
-    color: #8ab6f0;
+    color: var(--text-primary);
     font-weight: 500;
 }
 
 .settings-updates-status.is-error {
     background: rgba(220, 80, 80, 0.18);
-    color: #e88a8a;
+    color: var(--red-text);
 }

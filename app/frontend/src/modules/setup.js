@@ -84,7 +84,7 @@ export async function showChat() {
     applyAvatar(dom.userAvatar, state.myID, displayName);
     loadAvatarHashes();
     dom.statusEl.textContent = t("chat.offline");
-    dom.statusEl.style.color = "var(--yellow)";
+    dom.statusEl.style.color = "var(--yellow-text)";
 }
 
 async function autoConnect() {
@@ -94,13 +94,13 @@ async function autoConnect() {
         await svc("Connect", ":0", ":0", "");
         flog("INF", "frontend.connect", "connected");
         dom.statusEl.textContent = t("chat.online");
-        dom.statusEl.style.color = "var(--green)";
+        dom.statusEl.style.color = "var(--green-text)";
         refreshPeers();
     } catch (err) {
         flog("ERR", "frontend.connect", "failed: " + err);
         console.error("connect error:", err);
         dom.statusEl.textContent = t("chat.offline");
-        dom.statusEl.style.color = "var(--yellow)";
+        dom.statusEl.style.color = "var(--yellow-text)";
     }
 }
 

@@ -120,7 +120,7 @@
 
 .setup-btn-danger {
     background: transparent;
-    color: var(--red);
+    color: var(--red-text);
     border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
 }
 
@@ -187,7 +187,7 @@
 }
 
 .phrase-cell.bad input {
-    color: var(--red);
+    color: var(--red-text);
 }
 
 .phrase-tools {
@@ -265,7 +265,7 @@
 
 .setup-note.warn > i,
 .setup-note.warn > svg {
-    color: var(--yellow);
+    color: var(--yellow-text);
     flex-shrink: 0;
 }
 
@@ -276,7 +276,7 @@
 
 .setup-note.err > i,
 .setup-note.err > svg {
-    color: var(--red);
+    color: var(--red-text);
     flex-shrink: 0;
 }
 
@@ -342,7 +342,7 @@
 .setup-error {
     min-height: 18px;
     font-size: 13px;
-    color: var(--red);
+    color: var(--red-text);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -355,7 +355,7 @@
 /* Перебивает серый .setup-container p */
 .setup-container .setup-error {
     font-size: 13px;
-    color: var(--red);
+    color: var(--red-text);
 }
 
 .setup-step-center .setup-error {
@@ -393,7 +393,7 @@
 
 .recovery-warning > i,
 .recovery-warning > svg {
-    color: var(--yellow);
+    color: var(--yellow-text);
 }
 
 .recovery-warning h2 {
@@ -468,7 +468,7 @@
 }
 
 .error-text {
-    color: var(--red) !important;
+    color: var(--red-text) !important;
     margin-top: 12px;
     font-size: 13px;
 }

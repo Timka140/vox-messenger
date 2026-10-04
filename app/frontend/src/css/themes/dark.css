@@ -1,11 +1,12 @@
 /* ========== DARK THEME ========== */
-[data-theme="dark"] {
+/* :root — иначе токены получает и карточка выбора темы .theme-card[data-theme="dark"] */
+:root[data-theme="dark"] {
     --bg-app: #242830;
     --bg-panel: #2E323B;
     --bg-chat: #242830;
     --bg-nav: #1B1E25;
     --bg-nav-hover: #2E323B;
-    --input-bg: #262A33;
+    --input-bg: #20242c;
 
     --bubble-out: #A3DAC5;
     --bubble-out-text: #1a2a22;
@@ -13,24 +14,28 @@
     --bubble-in-text: #e1e3e6;
 
     --text-primary: #e8eaed;
-    --text-secondary: #8b929e;
-    --text-muted: #636a76;
+    --text-secondary: #b3b9c3;
+    --text-muted: #9aa1ad;
 
     --accent: #A3DAC5;
     --accent-hover: #8dcbb3;
     --accent-btn-text: #1a2a22;
     --accent-soft: rgba(163, 218, 197, 0.15);
 
-    --border: #3A3E47;
+    --border: #434854;
+    --control-track: #5c6370;
 
     --green: #43b581;
-    --red: #f04747;
+    --red: #e03131;
     --yellow: #faa61a;
+    --green-text: #57cc95;
+    --red-text: #fa8585;
+    --yellow-text: #faa61a;
 
     --contact-hover: #363A43;
     --contact-active: rgba(163, 218, 197, 0.15);
     --contact-active-text: #ffffff;
-    --contact-active-muted: rgba(255, 255, 255, 0.55);
+    --contact-active-muted: rgba(255, 255, 255, 0.65);
 
     --shadow-sm: none;
     --shadow-md: none;
@@ -48,9 +53,19 @@
 /* Outbound bubble time/status — dark text on light mint bubble */
 [data-theme="dark"] .message-row.outbound .bubble-time {
     color: #2a4a3a;
-    opacity: 0.7;
+    opacity: 1;
 }
 [data-theme="dark"] .message-row.outbound .bubble-status {
     color: #2a4a3a;
-    opacity: 0.6;
+    opacity: 1;
+}
+
+/* Inbound bubble is lighter than the panel — muted time is too faint on it */
+[data-theme="dark"] .message-row.inbound .bubble-meta {
+    color: var(--text-secondary);
+}
+
+/* Selected inbound bubble is almost the same tone as the selection strip — outline it */
+[data-theme="dark"] .messages.select-mode .message-row.is-selected.inbound .message-bubble {
+    box-shadow: 0 0 0 1px var(--border);
 }

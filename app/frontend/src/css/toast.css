@@ -55,8 +55,8 @@
 }
 
 .vox-toast.is-info    .vox-toast-icon { color: var(--accent); }
-.vox-toast.is-error   .vox-toast-icon { color: var(--red); }
-.vox-toast.is-success .vox-toast-icon { color: var(--green); }
+.vox-toast.is-error   .vox-toast-icon { color: var(--red-text); }
+.vox-toast.is-success .vox-toast-icon { color: var(--green-text); }
 
 .vox-toast-body {
     flex: 1;

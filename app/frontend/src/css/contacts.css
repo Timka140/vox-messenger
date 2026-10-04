@@ -199,7 +199,7 @@
     height: 20px;
     border-radius: 10px;
     background: var(--green);
-    color: #fff;
+    color: var(--on-green);
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -315,7 +315,7 @@
 
 /* Voice channel state */
 #user-bar-voice {
-    color: var(--green);
+    color: var(--green-text);
 }
 
 #user-bar-voice-name {
@@ -324,14 +324,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--green);
+    color: var(--green-text);
 }
 
 /* Превью последнего сообщения (фаза 6c, callfmt.js renderLastMessagePreview):
    автор в группах — мятным жирным, «Вы:» приглушённо, пропущенный звонок — красным. */
 .contact-preview-author { color: var(--accent); font-weight: 600; }
 .contact-preview-author.is-me { color: var(--text-secondary); font-weight: 500; }
-.contact-preview.is-missed { color: var(--red); }
+.contact-preview.is-missed { color: var(--red-text); }
 
 /* Закреплённый чат (фаза 7a): булавка у имени, как «Без звука». Время
    прижато вправо: auto-отступ у последнего из значков. */
@@ -377,7 +377,7 @@
     align-self: center;
     margin-left: 4px;
     margin-right: auto;
-    color: var(--red);
+    color: var(--red-text);
 }
 .contact-muted:has(~ .contact-blocked),
 .contact-pinned:has(+ .contact-blocked) { margin-right: 0; }

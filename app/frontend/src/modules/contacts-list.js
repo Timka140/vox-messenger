@@ -624,7 +624,7 @@ function renderGroupsList() {
         gPreview.className = "contact-preview";
         if (group.left) {
             gPreview.textContent = t("chat.group_left");
-            gPreview.style.color = "var(--yellow)";
+            gPreview.style.color = "var(--yellow-text)";
         } else if (group.lastMessage) {
             // Превью последнего сообщения (фаза 6c): «Ник: текст», голосовое, фото
             renderLastMessagePreview(gPreview, group.lastMessage, true);
