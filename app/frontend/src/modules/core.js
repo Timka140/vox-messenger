@@ -441,7 +441,10 @@ export function autoGrowTextarea() {
     dom.messageInput.style.height = "auto";
     var lineHeight = parseFloat(getComputedStyle(dom.messageInput).lineHeight) || 20;
     var maxH = lineHeight * maxInputLines + 20;
-    var h = Math.min(dom.messageInput.scrollHeight, maxH);
+    // scrollHeight не включает рамку, а высота (border-box) включает: без поправки
+    // поле после первого ввода становилось на 2px ниже, чем пустое
+    var border = dom.messageInput.offsetHeight - dom.messageInput.clientHeight;
+    var h = Math.min(dom.messageInput.scrollHeight, maxH) + border;
     dom.messageInput.style.height = h + "px";
     dom.messageInput.style.overflowY = dom.messageInput.scrollHeight > maxH ? "auto" : "hidden";
 }

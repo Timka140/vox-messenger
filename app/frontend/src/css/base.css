@@ -38,6 +38,11 @@
     box-sizing: border-box;
 }
 
+/* Элементы форм сами шрифт не наследуют — без этого кнопки рисуются Arial */
+button, input, select, textarea {
+    font-family: inherit;
+}
+
 /* --- Lucide icon sizes --- */
 .icon-14 { width: 14px; height: 14px; }
 .icon-16 { width: 16px; height: 16px; }

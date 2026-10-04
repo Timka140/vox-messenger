@@ -910,8 +910,23 @@
     max-width: 480px;
 }
 
-.dialog-create-group .settings-field {
-    margin-bottom: 0;
+/* Поле с подписью в теле диалога (название группы/канала, переименование):
+ * подпись над полем, как .dialog-section-label, поле на всю ширину */
+.dialog-body .settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dialog-body .settings-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.dialog-body .settings-field .settings-input {
+    flex: none;
+    width: 100%;
 }
 
 /* Incoming call modal */

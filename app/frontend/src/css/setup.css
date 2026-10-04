@@ -472,3 +472,15 @@
     margin-top: 12px;
     font-size: 13px;
 }
+
+/* Низкое окно (минимум 560): шаг с фразой помещается без прокрутки */
+@media (max-height: 640px) {
+    #setup-screen,
+    #recovery-screen { padding: 12px 16px; }
+    .setup-container { padding: 24px 32px 20px; }
+    .setup-step { gap: 14px; }
+    .setup-container h2 { font-size: 20px; margin-bottom: 4px; }
+}
+
+/* Системный флажок в тёмной теме — тёмный, а не белый */
+[data-theme="dark"] .setup-check input { color-scheme: dark; }
