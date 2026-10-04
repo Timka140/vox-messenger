@@ -15,6 +15,16 @@ export function getLocale() {
     return currentLocale;
 }
 
+// plural — «7 участников» / «1 участник»: ключ + ".one|few|many|other" по
+// Intl.PluralRules языка интерфейса, {n} заменяется числом.
+export function plural(key, n) {
+    var cat = "other";
+    try { cat = new Intl.PluralRules(currentLocale).select(n); } catch (e) { /* старый движок */ }
+    var s = t(key + "." + cat);
+    if (s === key + "." + cat) s = t(key + ".other");
+    return s.replace("{n}", n);
+}
+
 // setLocale loads a locale JSON file and applies translations to [data-i18n] elements.
 export async function setLocale(lang) {
     try {

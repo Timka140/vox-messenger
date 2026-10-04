@@ -345,7 +345,8 @@ export function renderCalls(cardEl, items, allBtn) {
             const dur = it.duration > 0 ? formatMmSs(it.duration * 1000) : "";
             row.innerHTML = '<i data-lucide="' + icon + '" class="icon-16' + cls + '"></i><span class="profile-call-kind"></span><span class="profile-call-when"></span><span class="profile-call-dur"></span>';
             row.querySelector(".profile-call-kind").textContent = label;
-            row.querySelector(".profile-call-when").textContent = formatDateLabel(it.createdAt * 1000) + " · " + formatTime(it.createdAt * 1000);
+            row.querySelector(".profile-call-when").textContent = formatDateLabel(it.createdAt * 1000) + " · " +
+                new Date(it.createdAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
             row.querySelector(".profile-call-dur").textContent = dur;
             list.appendChild(row);
         });
