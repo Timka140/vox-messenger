@@ -10,7 +10,7 @@
 // «…» шапки (chat-menu.js), здесь тоже доступно через «Ещё».
 
 import { svc, flog, state, dom, colorFromId, Events, formatDateLabel } from "./core.js";
-import { t, getLocale } from "./i18n.js";
+import { t, getLocale, plural } from "./i18n.js";
 import { refreshPeers, setRefreshInfoPanel, selectGroup, showGroupsList, groupMenuCallbacks, selectPeer, showMessagesList, setShowAddMemberDialog } from "./contacts-list.js";
 import { getPeerVolume, setPeerVolume, isPeerMuted, setPeerMuted } from "./peer-volume.js";
 import { getChatColor, showChatColorMenu } from "./chat-prefs.js";
@@ -164,14 +164,7 @@ function copy(text) {
     try { navigator.clipboard.writeText(text); showSuccess(t("info.copied")); } catch (e) { /* окно без фокуса */ }
 }
 
-// plural — «7 участников» / «1 участник» (Intl.PluralRules по языку интерфейса).
-export function plural(key, n) {
-    var cat = "other";
-    try { cat = new Intl.PluralRules(getLocale()).select(n); } catch (e) { /* старый движок */ }
-    var s = t(key + "." + cat);
-    if (s === key + "." + cat) s = t(key + ".other");
-    return s.replace("{n}", n);
-}
+export { plural };
 
 function shortDate(ms) {
     var d = new Date(ms);

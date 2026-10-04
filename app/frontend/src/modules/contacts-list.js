@@ -8,7 +8,7 @@ import { svc, flog, state, dom, colorFromId, formatTime } from "./core.js";
 import { joinVoice, leaveVoice } from "./voice.js";
 import { showContextMenu } from "./contextmenu.js";
 import { buildGroupContextMenu } from "./ui.js";
-import { t } from "./i18n.js";
+import { t, plural } from "./i18n.js";
 import { updateVoiceHeaderBtn } from "./events.js";
 import { renderUserBar, endCall, startCall } from "./calls.js";
 import { isMuted, peerKey, groupKey, toggleMuted } from "./mute.js";
@@ -320,7 +320,7 @@ export async function selectGroup(groupID, groupObj) {
     dom.inputArea.style.display = (groupObj && groupObj.left) ? "none" : "block";
     dom.chatPeerName.textContent = groupObj ? groupObj.name : "Group";
     var memberCount = groupObj ? groupObj.members : 0;
-    dom.chatPeerStatus.innerHTML = '<i data-lucide="users" class="icon-14" style="margin-right:4px;"></i> ' + memberCount + ' ' + t("chat.members");
+    dom.chatPeerStatus.innerHTML = '<i data-lucide="users" class="icon-14" style="margin-right:4px;"></i> ' + plural("info.n_members", memberCount);
     if (window.lucide) lucide.createIcons({ nodes: [dom.chatPeerStatus] });
 
     // Показать/скрыть voice button, скрыть call button
@@ -374,7 +374,7 @@ export function updateGroupHeader() {
         if (state.groups[i].groupId === state.selectedGroupID) {
             var g = state.groups[i];
             dom.chatPeerName.textContent = g.name;
-            dom.chatPeerStatus.innerHTML = '<i data-lucide="users" class="icon-14" style="margin-right:4px;"></i> ' + g.members + ' ' + t("chat.members") +
+            dom.chatPeerStatus.innerHTML = '<i data-lucide="users" class="icon-14" style="margin-right:4px;"></i> ' + plural("info.n_members", g.members) +
                 '<div id="voice-participants" style="display:none;"></div>';
             if (window.lucide) lucide.createIcons({ nodes: [dom.chatPeerStatus] });
             // Обновить voice button при изменении voiceEnabled
@@ -629,7 +629,7 @@ function renderGroupsList() {
             // Превью последнего сообщения (фаза 6c): «Ник: текст», голосовое, фото
             renderLastMessagePreview(gPreview, group.lastMessage, true);
         } else {
-            gPreview.textContent = group.members + " " + t("chat.members");
+            gPreview.textContent = plural("info.n_members", group.members);
         }
         gBottomRow.appendChild(gPreview);
 

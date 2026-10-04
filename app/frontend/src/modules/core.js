@@ -1,7 +1,7 @@
 "use strict";
 
 import { Events, Call } from "/wails/runtime.js";
-import { t } from "./i18n.js";
+import { t, getLocale } from "./i18n.js";
 import { showError } from "./toast.js";
 
 export { Events };
@@ -407,7 +407,8 @@ export function formatTime(timestamp) {
         var days = [t("time.sun"), t("time.mon"), t("time.tue"), t("time.wed"), t("time.thu"), t("time.fri"), t("time.sat")];
         return days[d.getDay()];
     }
-    return (d.getMonth() + 1) + "/" + d.getDate();
+    // «16.09» / «9/16» — порядок дня и месяца по языку интерфейса
+    return new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "numeric" }).format(d);
 }
 
 export function formatDateLabel(timestamp) {
@@ -417,9 +418,8 @@ export function formatDateLabel(timestamp) {
     var yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     if (d.toDateString() === yesterday.toDateString()) return t("time.yesterday");
-    var months = [t("time.jan"), t("time.feb"), t("time.mar"), t("time.apr"), t("time.may"), t("time.jun"),
-        t("time.jul"), t("time.aug"), t("time.sep"), t("time.oct"), t("time.nov"), t("time.dec")];
-    return months[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+    // «16 сентября 2026 г.» / «September 16, 2026» — по языку интерфейса
+    return new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
 export function formatMmSs(ms) {
