@@ -85,6 +85,15 @@ function cancelEdit() {
     dom.messageInput.style.height = "auto";
 }
 
+// Полоса над полем съедает высоту ленты: если лента была у низа — оставляем её
+// у низа, иначе последнее сообщение уходит под полосу.
+function showStripKeepingBottom(strip) {
+    var m = dom.messagesDiv;
+    var atBottom = m && m.scrollHeight - m.clientHeight - m.scrollTop < 40;
+    strip.hidden = false;
+    if (atBottom) m.scrollTop = m.scrollHeight;
+}
+
 // Полоса «Редактирование» над полем: карандаш, исходный текст, ×. Справа
 // вместо микрофона/отправки — одна кнопка с галочкой (#edit-confirm-btn).
 function showEditStrip(text) {
@@ -99,7 +108,7 @@ function showEditStrip(text) {
     var close = strip.querySelector(".composer-strip-close");
     close.title = t("dialog.cancel");
     close.addEventListener("click", cancelEdit);
-    strip.hidden = false;
+    showStripKeepingBottom(strip);
     dom.inputArea.classList.add("is-editing");
     if (window.lucide) lucide.createIcons({ nodes: [strip] });
 }
@@ -154,7 +163,7 @@ function showReplyStrip(ref) {
     var close = strip.querySelector(".composer-strip-close");
     close.title = t("dialog.cancel");
     close.addEventListener("click", cancelReply);
-    strip.hidden = false;
+    showStripKeepingBottom(strip);
     if (window.lucide) lucide.createIcons({ nodes: [strip] });
 }
 

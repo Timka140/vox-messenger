@@ -2492,13 +2492,20 @@ function deleteSelected() {
     var list = selectedMsgs();
     if (list.length === 0) return;
     var allOwn = list.every(function (m) { return m.outbound; });
+    var title = t("select.delete_title").replace("{n}", String(list.length));
     var dlg = buildDialogOverlay(
-        t("select.delete_title").replace("{n}", String(list.length)),
+        title,
         "",
         t("dialog.cancel"),
         t("select.delete_me"),
-        function (overlay) { overlay.remove(); deleteMessages(list, false); exitSelectMode(); }
+        function (overlay) { overlay.remove(); deleteMessages(list, false); exitSelectMode(); },
+        { noHeader: true, className: "dialog-confirm" }
     );
+    // Вопрос — в теле, как в confirmDialog: с шапкой пустое тело давало полосу
+    var h = document.createElement("div");
+    h.className = "dialog-confirm-title";
+    h.textContent = title;
+    dlg.body.appendChild(h);
     if (allOwn) {
         var b = document.createElement("button");
         b.type = "button";

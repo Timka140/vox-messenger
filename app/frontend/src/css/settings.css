@@ -92,6 +92,9 @@
 .st-row { display: grid; grid-template-columns: 180px minmax(0, 1fr); align-items: center; gap: 12px; }
 .st-two-col .st-row { grid-template-columns: 160px minmax(0, 1fr); }
 .st-lbl { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+/* Поле с подсказкой под ним: подпись — напротив поля, а не посередине блока */
+.st-row:has(> .st-inline > .settings-input + .settings-desc) { align-items: start; }
+.st-row:has(> .st-inline > .settings-input + .settings-desc) > .st-lbl { line-height: 36px; }
 .st-inline { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .st-inline.st-col-inline { flex-direction: column; align-items: stretch; gap: 4px; }
 .st-mono { font-size: 13px; color: var(--text-primary); }
@@ -216,7 +219,7 @@
 .settings-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .settings-table thead th {
     text-align: left;
-    padding: 8px 10px;
+    padding: 8px;
     color: var(--text-secondary);
     font-weight: 600;
     font-size: 11px;
@@ -224,7 +227,13 @@
     letter-spacing: 0.5px;
     border-bottom: 1px solid var(--border);
 }
-.settings-table tbody td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.settings-table tbody td { padding: 8px; border-bottom: 1px solid var(--border); }
+/* Поля колонок ужаты, чтобы в окне 800 таблица не была шире карточки: первая колонка —
+   от края карточки, колонка с кнопкой удаления — без полей */
+.settings-table thead th:first-child,
+.settings-table tbody td:first-child { padding-left: 0; }
+.settings-table thead th:last-child,
+.settings-table tbody td:last-child { width: 36px; padding-left: 0; padding-right: 0; }
 .settings-table tbody tr:hover { background: var(--input-bg); }
 .table-empty { color: var(--text-muted); font-style: italic; text-align: center; padding: 16px 10px; }
 
@@ -262,6 +271,9 @@
 }
 
 .settings-row { display: flex; align-items: center; gap: 8px; max-width: 520px; }
+/* Ряд на всю ширину (добавление сервера, ссылка): в узком окне кнопки уходят на вторую строку */
+.settings-row.st-w-full { flex-wrap: wrap; }
+.settings-row.st-w-full .settings-input { min-width: 220px; }
 
 .settings-icon-btn {
     width: 36px;
