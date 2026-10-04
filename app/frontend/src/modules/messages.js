@@ -2506,6 +2506,13 @@ function deleteSelected() {
     h.className = "dialog-confirm-title";
     h.textContent = title;
     dlg.body.appendChild(h);
+    if (!allOwn) {
+        // Без пояснения непонятно, куда делась кнопка «Удалить у всех»
+        var note = document.createElement("p");
+        note.className = "dialog-confirm-text";
+        note.textContent = t("select.delete_others_note");
+        dlg.body.appendChild(note);
+    }
     if (allOwn) {
         var b = document.createElement("button");
         b.type = "button";
