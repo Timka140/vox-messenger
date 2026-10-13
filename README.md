@@ -1,92 +1,96 @@
 # Vox
 
-P2P мессенджер для небольших компаний друзей: сообщения, голосовые каналы, звонки с показом экрана и файлы идут напрямую между участниками через WebRTC. Сигнальный сервер помогает участникам найти друг друга, а большим группам и голосовым комнатам пересылает трафик сам.
+**English** · [Русский](README.ru.md) · Website: [northwindcdn.com/vox](https://northwindcdn.com/vox/)
 
-## Возможности
+A peer-to-peer messenger for small groups of friends: messages, voice channels, calls with screen sharing and files travel directly between participants over WebRTC. The signaling server helps participants find each other, and relays traffic itself only for large groups and voice rooms.
 
-- **Личные сообщения и группы** — текст, голосовые, файлы, P2P через DataChannel
-- **Голосовые каналы и звонки** — Opus, шумоподавление (RNNoise, DeepFilterNet3, FastEnhancer), SFU для больших комнат
-- **Демонстрация экрана**
-- **Офлайн-доставка** — личное сообщение ждёт у отправителя и уходит, когда собеседник появится в сети; сообщения больших групп хранит кластер сигнальных серверов
-- **Профиль — ключ Ed25519**, создаётся на компьютере, восстанавливается по фразе из 12 слов; локальная база зашифрована (SQLCipher)
-- **Автообновление** — релизы подписаны Ed25519
-- **Meshtastic** — экспериментальный транспорт через LoRa
+Download for Windows and Linux: [northwindcdn.com/vox](https://northwindcdn.com/vox/). Run your own server: [northwindcdn.com/vox/server](https://northwindcdn.com/vox/server/).
 
-## Безопасность
+## Features
 
-Ключ профиля (Ed25519) создаётся на компьютере; им подписывается всё, что подтверждает личность: вход на сервер, SDP P2P-соединений, сообщения групп.
+- **Direct messages and groups** — text, voice messages, files, P2P over DataChannel
+- **Voice channels and calls** — Opus, noise suppression (RNNoise, DeepFilterNet3, FastEnhancer), SFU for large rooms
+- **Screen sharing**
+- **Offline delivery** — a direct message waits on the sender's machine and goes out when the recipient comes online; messages of large groups are stored by the signaling server cluster
+- **Your profile is an Ed25519 key**, created on your computer and recoverable from a 12-word phrase; the local database is encrypted (SQLCipher)
+- **Auto-update** — releases are signed with Ed25519
+- **Meshtastic** — experimental transport over LoRa
 
-| Канал | Защита |
+## Security
+
+The profile key (Ed25519) is created on your computer; it signs everything that proves identity: server login, SDP of P2P connections, group messages.
+
+| Channel | Protection |
 |---|---|
-| Личные сообщения, файлы, звонки, показ экрана (P2P) | DTLS WebRTC; SDP с DTLS-отпечатком подписан ключом отправителя, поэтому сервер не может встать посередине. TURN трафик не расшифровывает |
-| Группы через сервер (от 50 участников или по настройке) | Сквозное шифрование: XChaCha20-Poly1305, ключ сообщения обёрнут для каждого участника (NaCl box), автор подписывает. Сервер хранит только шифротекст до 7 дней. Новый участник читает переписку с момента вступления |
-| Голосовые комнаты через SFU | Сквозное шифрование кадров ChaCha20-Poly1305 ключом отправителя; ключи расходятся по P2P и меняются, когда кто-то уходит |
-| Связь клиента с сигнальным сервером и SFU | TLS (`wss://`, порт 9743, SFU 9762). Сертификат узла самоподписанный, его отпечаток узел подтверждает своим ключом при входе |
-| Связь узлов кластера | TLS с тем же подтверждением ключами узлов |
-| Локальная база и вложения | SQLCipher и AES-256-GCM; ключ лежит рядом с базой (`vox.key`) |
-| LoRa (Meshtastic, экспериментально) | Сквозное шифрование NaCl box ключами профилей |
+| Direct messages, files, calls, screen sharing (P2P) | WebRTC DTLS; the SDP carrying the DTLS fingerprint is signed by the sender's key, so the server cannot become a man in the middle. TURN does not decrypt traffic |
+| Server-relayed groups (50+ members or by setting) | End-to-end encryption: XChaCha20-Poly1305, the message key is wrapped for each member (NaCl box), the author signs. The server stores only ciphertext, for up to 7 days. A new member reads the history from the moment they joined |
+| Voice rooms via SFU | End-to-end encryption of frames with ChaCha20-Poly1305 under the sender's key; keys are exchanged over P2P and rotated when someone leaves |
+| Client ↔ signaling server and SFU | TLS (`wss://`, port 9743, SFU 9762). The node certificate is self-signed; the node confirms its fingerprint with its key during login |
+| Between cluster nodes | TLS with the same key-based confirmation |
+| Local database and attachments | SQLCipher and AES-256-GCM; the key is stored next to the database (`vox.key`) |
+| LoRa (Meshtastic, experimental) | End-to-end NaCl box encryption with profile keys |
 
-Чего нет: прямой секретности (forward secrecy) для групп через сервер — утечка ключа профиля открывает сохранённые на сервере сообщения за срок хранения; сервер видит метаданные (кто в какой группе, когда и сколько пишет).
+Not provided: forward secrecy for server-relayed groups — a leaked profile key exposes the messages stored on the server within the retention period; the server sees metadata (who is in which group, when and how much they write).
 
-Обновления подписаны: клиент ставит только то, что есть в манифесте с подписью Ed25519, и сверяет SHA-256 каждого файла.
+Updates are signed: the client installs only what is listed in a manifest signed with Ed25519, and checks the SHA-256 of every file.
 
-## Технологии
+## Stack
 
-| Компонент | Технология |
+| Component | Technology |
 |-----------|-----------|
-| Клиент | Go 1.26, Wails v3, Vanilla JS (ES modules) |
-| БД | SQLCipher |
-| P2P | Pion WebRTC v4 (форки transport/turn в `third_party/`) |
-| Серверы | Go: сигналка + кластер, SFU, debug-логи |
+| Client | Go 1.26, Wails v3, vanilla JS (ES modules) |
+| Database | SQLCipher |
+| P2P | Pion WebRTC v4 (transport/turn forks in `third_party/`) |
+| Servers | Go: signaling + cluster, SFU, debug logs |
 
-## Структура репозитория
+## Repository layout
 
 ```
-app/                  клиент (Wails): Go-бэкенд, frontend/, cmd/ — утилиты релиза и шумодава
+app/                  client (Wails): Go backend, frontend/, cmd/ — release and noise suppression tools
 server/
-  signal/             сигнальный сервер, кластер узлов, релизы
-  sfu/                SFU для голоса
-  debug/              приём логов клиентов
+  signal/             signaling server, node cluster, releases
+  sfu/                SFU for voice
+  debug/              client log collector
 third_party/
-  pion-transport/     форк github.com/pion/transport/v4 (replace в app/go.mod)
-  pion-turn/          форк github.com/pion/turn/v4
-  opus/               статическая libopus для cgo
-  libdf/              обёртка DeepFilterNet (Rust staticlib для cgo)
-build/                сборка, релиз, деплой на узлы (nodes/, remote/)
+  pion-transport/     fork of github.com/pion/transport/v4 (replace in app/go.mod)
+  pion-turn/          fork of github.com/pion/turn/v4
+  opus/               static libopus for cgo
+  libdf/              DeepFilterNet wrapper (Rust staticlib for cgo)
+build/                build, release, node deployment (nodes/, remote/)
 tools/
-  meshtastic/         python-утилиты для отладки Heltec/Meshtastic
-  ns-reference/       эталонные wav и python-референс шумодава
-  wordlist-ru/        генератор русского словаря секретной фразы
-docs/                 сборка и релизы, контракт кластера
-.local/               локально, не в git: логи, модели, собранные релизы, ключ подписи
+  meshtastic/         python tools for debugging Heltec/Meshtastic
+  ns-reference/       reference wav files and python reference of the noise suppressor
+  wordlist-ru/        generator of the Russian recovery phrase wordlist
+docs/                 build and releases, cluster contract (in Russian)
+.local/               local only, not in git: logs, models, built releases, signing key
 ```
 
-## Сборка
+## Building
 
-Подробно — [docs/build.md](docs/build.md). Коротко:
+Details — [docs/build.md](docs/build.md) (in Russian). In short:
 
 ```bash
 git clone --recursive https://github.com/Timka140/vox-messenger.git
-# или после обычного clone:
+# or after a plain clone:
 git submodule update --init app/internal/audio/rnnoise
 
-# Клиент для разработки (нужны gcc и g++: MinGW на Windows;
-# на Linux ещё libgtk-3-dev и libwebkit2gtk-4.1-dev)
+# Development client (needs gcc and g++: MinGW on Windows;
+# on Linux also libgtk-3-dev and libwebkit2gtk-4.1-dev)
 cd app && CGO_ENABLED=1 go build -o vox.exe .
 
-# Сигнальный сервер под Linux
+# Signaling server for Linux
 ./build/signal-linux.sh
 ```
 
-Такая сборка — без шумодава, VAD и автообновления (версия `dev`). Полная сборка с тегами `nx_rnnoise nx_onnx nx_dfn` требует скачанных моделей и onnxruntime — см. docs/build.md.
+This build has no noise suppression, VAD or auto-update (version `dev`). A full build with the `nx_rnnoise nx_onnx nx_dfn` tags requires downloaded models and onnxruntime — see docs/build.md.
 
-## Тесты
+## Tests
 
 ```bash
 cd app && go test ./...
 cd server/signal && go test ./...
 ```
 
-## Лицензия
+## License
 
-[MIT](LICENSE). Сторонний код распространяется под своими лицензиями: форки pion (`third_party/pion-*`, MIT), libopus (`third_party/opus`, BSD, текст в заголовках), RNNoise (`app/internal/audio/rnnoise`, BSD), OpenH264 (`app/internal/codec/h264enc`, BSD), miniaudio (public domain / MIT-0), модели FastEnhancer и GTCRN (MIT, см. README в их каталогах).
+[MIT](LICENSE). Third-party code is distributed under its own licenses: pion forks (`third_party/pion-*`, MIT), libopus (`third_party/opus`, BSD, text in the headers), RNNoise (`app/internal/audio/rnnoise`, BSD), OpenH264 (`app/internal/codec/h264enc`, BSD), miniaudio (public domain / MIT-0), FastEnhancer and GTCRN models (MIT, see the README in their directories).
