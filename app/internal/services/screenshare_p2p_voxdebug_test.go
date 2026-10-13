@@ -4,10 +4,12 @@ package services
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/hex"
 	"image"
 	"log/slog"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -68,8 +70,7 @@ func dispatchSignal(pm *network.PeerManager, fromPK string, m *network.Message) 
 // Проверяет именно тот код, что я менял: EnsureScreenPC, setupScreenDataChannel,
 // SendScreenChunk (backpressure), фрагментацию на chunks и reassembly.
 func TestScreenShareP2PLoopback(t *testing.T) {
-	pkA := strings.Repeat("a1", 32) // 64 hex — "отправитель"
-	pkB := strings.Repeat("b2", 32) // "зритель"
+	privA, privB, pkA, pkB := signedPair(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	noopMsg := func(string, []byte) {}
@@ -85,6 +86,8 @@ func TestScreenShareP2PLoopback(t *testing.T) {
 	defer pmB.CloseAll()
 	pmA.SetICEServers(nil)
 	pmB.SetICEServers(nil)
+	pmA.SetSigner(privA)
+	pmB.SetSigner(privB)
 
 	var rxMu sync.Mutex
 	var rx [][]byte
@@ -166,8 +169,7 @@ func TestScreenShareP2PLoopback(t *testing.T) {
 // ресивер собирает кадры с монотонными frameID, корректными payload и без потерь
 // из-за трешинга буфера (главная болезнь старого pipeline=2).
 func TestScreenShareP2PStreaming(t *testing.T) {
-	pkA := strings.Repeat("c3", 32)
-	pkB := strings.Repeat("d4", 32)
+	privA, privB, pkA, pkB := signedPair(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	noopMsg := func(string, []byte) {}
 	noopState := func(string, bool) {}
@@ -181,6 +183,8 @@ func TestScreenShareP2PStreaming(t *testing.T) {
 	defer pmB.CloseAll()
 	pmA.SetICEServers(nil)
 	pmB.SetICEServers(nil)
+	pmA.SetSigner(privA)
+	pmB.SetSigner(privB)
 
 	// Ресивер собирает кадры через прод-логику ingestChunk.
 	recv := newTestScreenSvc()
@@ -252,8 +256,7 @@ func TestScreenShareP2PStreaming(t *testing.T) {
 // keyframe-флагом, поток содержит SPS/PPS/IDR. Плюс обратный control-фрейм
 // PLI зритель → отправитель по тому же DC.
 func TestScreenShareP2PH264(t *testing.T) {
-	pkA := strings.Repeat("e5", 32)
-	pkB := strings.Repeat("f6", 32)
+	privA, privB, pkA, pkB := signedPair(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	noopMsg := func(string, []byte) {}
 	noopState := func(string, bool) {}
@@ -267,6 +270,8 @@ func TestScreenShareP2PH264(t *testing.T) {
 	defer pmB.CloseAll()
 	pmA.SetICEServers(nil)
 	pmB.SetICEServers(nil)
+	pmA.SetSigner(privA)
+	pmB.SetSigner(privB)
 
 	var rxMu sync.Mutex
 	var rxB, rxA [][]byte
@@ -361,4 +366,13 @@ func TestScreenShareP2PH264(t *testing.T) {
 		t.Fatalf("PLI не дошёл до отправителя: ok=%v op=%d", ok, op)
 	}
 	t.Logf("OK: H.264 keyframe %d байт в %d chunks доставлен и собран; PLI получен", len(payload), len(chunks))
+}
+
+// signedPair — ключи профилей двух сторон: offer/answer подписываются
+// (network/sdpsign.go), фиктивные hex-ключи больше не годятся.
+func signedPair(t *testing.T) (ed25519.PrivateKey, ed25519.PrivateKey, string, string) {
+	t.Helper()
+	pa, a, _ := ed25519.GenerateKey(rand.Reader)
+	pb, b, _ := ed25519.GenerateKey(rand.Reader)
+	return a, b, hex.EncodeToString(pa), hex.EncodeToString(pb)
 }
