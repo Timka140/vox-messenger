@@ -369,6 +369,9 @@ func (s *GroupsService) KickGroupMember(groupID, peerID string) error {
 	if !sent {
 		s.persistGroupAction(kickID, groupID, peerID, "group_kick", "", now)
 	}
+	// Оставшимся — тоже: сообщения через сервер шифруются для участников по
+	// их локальному списку (groups_e2e.go), исключённый должен из него уйти.
+	s.broadcastGroupActionWithPayload("member_removed", groupID, myID, s.GetGroupMemberIDs(groupID), peerID)
 
 	s.network.emitEvent("vox:group-kicked", map[string]string{
 		"groupId": groupID,

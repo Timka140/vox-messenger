@@ -92,14 +92,41 @@ func (s *GroupsService) HandleGroupP2P(fromPubKey string, msg *P2PMessage) {
 				go s.network.ConnectToGroupPeer(newPeerID)
 			}
 		}
+	case "member_removed":
+		// Админ исключил участника (Content = его peerID). Убираем из списка —
+		// иначе ему и дальше шифровались бы сообщения группы.
+		if !s.senderIsGroupAdmin(msg.GroupID, fromPubKey) {
+			s.log.Warn("member_removed от не-админа, игнорируем",
+				slog.String("group", msg.GroupID), slog.String("peer", safeShort(fromPubKey)))
+			return
+		}
+		removed := msg.Content
+		if myID, _ := s.sess.PeerID(); removed == "" || removed == myID {
+			return // себя — через group_kick
+		}
+		s.store.DB().Exec("DELETE FROM group_members WHERE group_id = ? AND peer_id = ?", msg.GroupID, removed)
+		s.log.Info("участник исключён админом",
+			slog.String("group", msg.GroupID), slog.String("peer", safeShort(removed)))
+		s.network.emitEvent("vox:group-kicked", map[string]string{
+			"groupId": msg.GroupID,
+			"peerId":  removed,
+		})
 	case "group_message_edit":
-		s.store.DB().Exec("UPDATE group_messages SET content = ?, edited = 1 WHERE id = ?", msg.Content, msg.ID)
+		// Править можно только своё сообщение.
+		res, _ := s.store.DB().Exec("UPDATE group_messages SET content = ?, edited = 1 WHERE id = ? AND sender_id = ?", msg.Content, msg.ID, fromPubKey)
+		if n, _ := res.RowsAffected(); n == 0 {
+			return
+		}
 		s.log.Info("✏️ GROUP ОТРЕДАКТИРОВАНО",
 			slog.String("group_id", msg.GroupID),
 			slog.String("msg_id", msg.ID))
 		s.network.EmitEvent("vox:message-edited", map[string]string{"id": msg.ID, "content": msg.Content})
 	case "group_message_delete":
-		s.store.DB().Exec("UPDATE group_messages SET deleted = 1 WHERE id = ?", msg.ID)
+		// Удалить у всех может только автор.
+		res, _ := s.store.DB().Exec("UPDATE group_messages SET deleted = 1 WHERE id = ? AND sender_id = ?", msg.ID, fromPubKey)
+		if n, _ := res.RowsAffected(); n == 0 {
+			return
+		}
 		if s.onUnlinkAttachments != nil {
 			s.onUnlinkAttachments(msg.ID, "group")
 		}

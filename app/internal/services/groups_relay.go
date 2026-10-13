@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"vox_app/internal/logsafe"
+	"vox_app/internal/e2e"
 	"vox_app/internal/network"
 )
 
@@ -427,9 +428,31 @@ func (s *GroupsService) handleGroupMessageNew(msg *network.Message, fromSync boo
 	// повторно эмитить event не нужно.
 	firstSeen := !alreadyHave
 
-	// Цитата и «переслано от» едут внутри payload (relay-конверт, см.
-	// reply_forward.go); обычный текст возвращается как есть.
-	content, relayOpts := decodeRelayPayload(p.Payload)
+	// Payload зашифрован для участников (groups_e2e.go). Своё уже лежит
+	// локально открытым текстом — расшифровывать незачем.
+	plain := ""
+	if !(outbound && alreadyHave) {
+		var derr error
+		plain, derr = s.openRelay(&p)
+		if derr != nil {
+			if errors.Is(derr, e2e.ErrNotForMe) {
+				s.log.Debug("сообщение группы до нашего вступления — пропущено",
+					slog.String("group_id", safeShort8(p.GroupID)), slog.Int64("seq", p.Seq))
+			} else {
+				s.log.Warn("сообщение группы отвергнуто",
+					slog.String("group_id", safeShort8(p.GroupID)),
+					slog.String("peer", safeShort(p.AuthorKey)),
+					slog.Int64("seq", p.Seq),
+					slog.String("error", derr.Error()))
+			}
+			if !fromSync {
+				s.bumpRelayCursorNext(p.GroupID, p.OriginNode, p.Seq)
+			}
+			return
+		}
+	}
+	// Цитата и «переслано от» едут внутри (relay-конверт, см. reply_forward.go).
+	content, relayOpts := decodeRelayPayload(plain)
 
 	if alreadyHave {
 		// Обновляем seq/server_ts — локальная строка была без них (свой же send
@@ -592,7 +615,10 @@ func (s *GroupsService) sendViaRelay(groupID, text string, opts SendOptions) (*S
 	// регистрировать группу, ни оставлять строку, ни уходить в сеть. Кадр
 	// больше предела сервер рвёт вместе с соединением.
 	msgID := genClientMsgID()
-	payload := encodeRelayPayload(text, opts)
+	payload, err := s.relayPayload(groupID, msgID, text, opts) // шифротекст для участников (groups_e2e.go)
+	if err != nil {
+		return nil, fmt.Errorf("%s: encrypt: %w", op, err)
+	}
 	if !relayFits(groupID, msgID, payload) {
 		return nil, fmt.Errorf("%s: %w", op, ErrRelayTooLarge)
 	}
@@ -635,7 +661,7 @@ func (s *GroupsService) sendViaRelay(groupID, text string, opts SendOptions) (*S
 		s.log.Warn("pending relay insert failed", slog.String("error", err.Error()))
 	}
 
-	if err := client.SendGroupMessageRelay(groupID, msgID, payload, false, nowMs); err != nil {
+	if err := client.SendGroupMessageRelay(groupID, msgID, payload, true, nowMs); err != nil {
 		// Удаляем локальную строку — иначе застрянет без seq навсегда.
 		_, _ = s.store.DB().Exec("DELETE FROM group_messages WHERE id = ?", msgID)
 		s.ackRelay(msgID)

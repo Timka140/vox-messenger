@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"vox_app/internal/e2e"
 	"vox_app/internal/network"
 	"vox_app/internal/session"
 	"vox_app/internal/storage"
@@ -41,6 +43,29 @@ func newRelayTestGroups(t *testing.T) (*GroupsService, *storage.Storage, string)
 	return g, store, me
 }
 
+// relayAuthor — другой участник группы: ключ и payload, зашифрованный для
+// нас (как его разошлёт сервер, groups_e2e.go).
+type relayAuthor struct {
+	priv ed25519.PrivateKey
+	key  string
+}
+
+func newRelayAuthor(t *testing.T) relayAuthor {
+	t.Helper()
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	return relayAuthor{priv: priv, key: hex.EncodeToString(pub)}
+}
+
+func (a relayAuthor) sealFor(t *testing.T, me, groupID, msgID, text string) string {
+	t.Helper()
+	mePub, _ := hex.DecodeString(me)
+	out, err := e2e.SealGroup(a.priv, []ed25519.PublicKey{mePub}, groupID, msgID, []byte(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
 // relayNew — живой fan-out от сервера.
 func relayNew(g *GroupsService, p network.GroupMessageNewPayload) {
 	raw, _ := json.Marshal(p)
@@ -58,10 +83,11 @@ func relaySyncPage(g *GroupsService, groupID string, hasMore bool, msgs ...netwo
 }
 
 func TestRelaySameSeqDifferentOrigins(t *testing.T) {
-	g, store, _ := newRelayTestGroups(t)
-	author := strings.Repeat("b", 64)
-	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 1, AuthorKey: author, ClientMsgID: "m1", Payload: "раз", ServerTsMs: 1000, OriginNode: "n1"})
-	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 1, AuthorKey: author, ClientMsgID: "m2", Payload: "два", ServerTsMs: 2000, OriginNode: "n2"})
+	g, store, me := newRelayTestGroups(t)
+	a := newRelayAuthor(t)
+	author := a.key
+	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 1, AuthorKey: author, ClientMsgID: "m1", Payload: a.sealFor(t, me, "G", "m1", "раз"), ServerTsMs: 1000, OriginNode: "n1"})
+	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 1, AuthorKey: author, ClientMsgID: "m2", Payload: a.sealFor(t, me, "G", "m2", "два"), ServerTsMs: 2000, OriginNode: "n2"})
 
 	var n int
 	store.DB().QueryRow("SELECT COUNT(*) FROM group_messages WHERE group_id = 'G'").Scan(&n)
@@ -168,15 +194,16 @@ func TestSyncLastPageAdvancesCursor(t *testing.T) {
 // Если сервер выдал seq повторно (после очистки по retention), строку молча
 // отбрасывает уникальный индекс — курсор двигать нельзя.
 func TestDroppedInsertKeepsCursor(t *testing.T) {
-	g, store, _ := newRelayTestGroups(t)
-	author := strings.Repeat("b", 64)
+	g, store, me := newRelayTestGroups(t)
+	a := newRelayAuthor(t)
+	author := a.key
 	if _, err := store.DB().Exec(
 		`INSERT INTO group_messages (id, group_id, sender_id, content, type, created_at, seq, origin_node)
 		 VALUES ('old', 'G', ?, 'старое', 'text', ?, 1, 'n1')`,
 		author, time.Now().Unix()); err != nil {
 		t.Fatal(err)
 	}
-	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 1, AuthorKey: author, ClientMsgID: "new", Payload: "новое", ServerTsMs: 10, OriginNode: "n1"})
+	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 1, AuthorKey: author, ClientMsgID: "new", Payload: a.sealFor(t, me, "G", "new", "новое"), ServerTsMs: 10, OriginNode: "n1"})
 
 	var n int
 	store.DB().QueryRow("SELECT COUNT(*) FROM group_messages WHERE group_id = 'G'").Scan(&n)
@@ -260,13 +287,13 @@ func TestRetryRelayOversizedMarksFailed(t *testing.T) {
 	}
 }
 
-// Не влезающее сообщение не создаёт строку и не уходит в сеть. Лимит кадра
-// проверяется отдельно: «<» в JSON — шесть байт.
+// Не влезающее сообщение не создаёт строку и не уходит в сеть. Предел —
+// на шифротекст: base64 добавляет треть, 25 КБ текста уже не влезают.
 func TestSendViaRelayTooLarge(t *testing.T) {
 	g, store, _ := newRelayTestGroups(t)
 	for name, text := range map[string]string{
-		"тело": strings.Repeat("x", relayMaxBodyBytes+1),
-		"кадр": strings.Repeat("<", 20*1024),
+		"тело":       strings.Repeat("x", relayMaxBodyBytes+1),
+		"шифротекст": strings.Repeat("x", 25*1024),
 	} {
 		_, err := g.sendViaRelay("G", text, SendOptions{})
 		if !errors.Is(err, ErrRelayTooLarge) {
@@ -342,4 +369,32 @@ func TestSyncHintWithoutClient(t *testing.T) {
 	g, _, _ := newRelayTestGroups(t)
 	raw, _ := json.Marshal(network.GroupSyncHintPayload{GroupID: "G"})
 	g.HandleSignalMessage(&network.Message{Type: network.TypeGroupSyncHint, Payload: raw})
+}
+
+// Сервер не может подсунуть сообщение открытым текстом или от чужого имени;
+// сообщение, зашифрованное не для нас (до вступления), пропускается, а курсор
+// идёт дальше.
+func TestRelayRejectsPlaintextAndForgery(t *testing.T) {
+	g, store, me := newRelayTestGroups(t)
+	a, b := newRelayAuthor(t), newRelayAuthor(t)
+	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 1, AuthorKey: a.key, ClientMsgID: "plain", Payload: "открытый текст", OriginNode: "n1"})
+	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 2, AuthorKey: b.key, ClientMsgID: "forged", Payload: a.sealFor(t, me, "G", "forged", "от a"), OriginNode: "n1"})
+	_, notMe, _ := ed25519.GenerateKey(rand.Reader)
+	other, _ := e2e.SealGroup(a.priv, []ed25519.PublicKey{notMe.Public().(ed25519.PublicKey)}, "G", "early", []byte("до вступления"))
+	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 3, AuthorKey: a.key, ClientMsgID: "early", Payload: other, OriginNode: "n1"})
+
+	var n int
+	store.DB().QueryRow("SELECT COUNT(*) FROM group_messages WHERE group_id = 'G'").Scan(&n)
+	if n != 0 {
+		t.Fatalf("принято %d сообщений, ожидалось 0", n)
+	}
+	if c := g.relayCursors("G")["n1"]; c != 3 {
+		t.Fatalf("курсор идёт за отвергнутыми: %d", c)
+	}
+	relayNew(g, network.GroupMessageNewPayload{GroupID: "G", Seq: 4, AuthorKey: a.key, ClientMsgID: "ok", Payload: a.sealFor(t, me, "G", "ok", "настоящее"), OriginNode: "n1"})
+	var content string
+	store.DB().QueryRow("SELECT content FROM group_messages WHERE id = 'ok'").Scan(&content)
+	if content != "настоящее" {
+		t.Fatalf("настоящее сообщение: %q", content)
+	}
 }

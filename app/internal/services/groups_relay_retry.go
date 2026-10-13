@@ -32,7 +32,7 @@ func relayFits(groupID, msgID, payload string) bool {
 	if len(payload) > relayMaxBodyBytes {
 		return false
 	}
-	return network.GroupSendFrameSize(groupID, msgID, payload, false, time.Now().UnixMilli()) <= relayMaxFrameBytes
+	return network.GroupSendFrameSize(groupID, msgID, payload, true, time.Now().UnixMilli()) <= relayMaxFrameBytes
 }
 
 const (
@@ -180,7 +180,12 @@ func (s *GroupsService) retryRelay(groupID, msgID string, attempt int) {
 		return
 	}
 	opts := SendOptions{ReplyTo: decodeReply(replyTo), ForwardedFrom: decodeForward(fwd)}
-	payload := encodeRelayPayload(content, opts)
+	// Шифруем заново для текущих участников; сервер дедуплицирует по msg_id.
+	payload, err := s.relayPayload(groupID, msgID, content, opts)
+	if err != nil {
+		s.log.Warn("повтор: шифрование не удалось", slog.String("msg_id", msgID), slog.String("error", err.Error()))
+		return
+	}
 	// Строка могла попасть в очередь до проверки размера (клиент 0078,
 	// правка сообщения): такой кадр сервер рвёт вместе с соединением, и
 	// повтор после каждого переподключения рвал бы его снова.
@@ -192,7 +197,7 @@ func (s *GroupsService) retryRelay(groupID, msgID string, attempt int) {
 	if client == nil {
 		return // повторит resendPendingRelay после переподключения
 	}
-	if err := client.SendGroupMessageRelay(groupID, msgID, payload, false, createdAt*1000); err != nil {
+	if err := client.SendGroupMessageRelay(groupID, msgID, payload, true, createdAt*1000); err != nil {
 		s.log.Warn("повтор отправки в группу не удался",
 			slog.String("msg_id", msgID), slog.String("error", err.Error()))
 	} else {
@@ -319,7 +324,7 @@ func (s *GroupsService) RetryGroupRelayMessage(msgID string) error {
 		return fmt.Errorf("%s: повторять нечего", op)
 	}
 	opts := SendOptions{ReplyTo: decodeReply(replyTo), ForwardedFrom: decodeForward(fwd)}
-	if !relayFits(groupID, msgID, encodeRelayPayload(content, opts)) {
+	if sealed, err := s.relayPayload(groupID, msgID, content, opts); err != nil || !relayFits(groupID, msgID, sealed) {
 		return ErrRelayTooLarge
 	}
 	if _, err := s.store.DB().Exec("UPDATE group_messages SET send_failed = '' WHERE id = ?", msgID); err != nil {
