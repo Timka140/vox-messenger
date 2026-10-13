@@ -490,42 +490,27 @@ func (s *Server) authenticate(conn *websocket.Conn, tlsHash []byte) (*hub.Peer, 
 	if err != nil || len(clientChallengeBytes) == 0 {
 		return nil, fmt.Errorf("invalid client_challenge")
 	}
-	v2 := authPayload.AuthVersion >= auth.AuthVersion
-	if !v2 && tlsHash != nil {
-		return nil, fmt.Errorf("на TLS-порту нужен вход v2")
+	if authPayload.AuthVersion < auth.AuthVersion {
+		return nil, fmt.Errorf("старый вход без auth_version не поддерживается")
 	}
 	clientPub, err := hex.DecodeString(authPayload.PublicKey)
 	if err != nil || len(clientPub) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("invalid public key")
 	}
-	var serverSig []byte
-	if v2 {
-		// Подписи с меткой и полями (internal/auth/v2.go): ни одна сторона не
-		// подписывает сырые чужие байты.
-		challengeBytes, _ := hex.DecodeString(challenge)
-		sig, err := hex.DecodeString(authPayload.Signature)
-		msg := auth.Message(auth.LabelClient, s.identity.Public, challengeBytes, tlsHash, clientPub)
-		if err != nil || !ed25519.Verify(ed25519.PublicKey(clientPub), msg, sig) {
-			return nil, fmt.Errorf("signature verification failed")
-		}
-		serverSig = ed25519.Sign(s.identity.Private,
-			auth.Message(auth.LabelServer, clientPub, clientChallengeBytes, tlsHash, s.identity.Public))
-	} else {
-		// Старый клиент (≤0086), только порт без TLS. Подпись сырого
-		// client_challenge — короткий переходный период; убрать после 0087.
-		if err := auth.VerifySignature(authPayload.PublicKey, challenge, authPayload.Signature); err != nil {
-			return nil, err
-		}
-		if len(clientChallengeBytes) != 32 {
-			return nil, fmt.Errorf("invalid client_challenge")
-		}
-		serverSig = ed25519.Sign(s.identity.Private, clientChallengeBytes)
+	// Подписи с меткой и полями (internal/auth/v2.go): ни одна сторона не
+	// подписывает сырые чужие байты.
+	challengeBytes, _ := hex.DecodeString(challenge)
+	sig, err := hex.DecodeString(authPayload.Signature)
+	signed := auth.Message(auth.LabelClient, s.identity.Public, challengeBytes, tlsHash, clientPub)
+	if err != nil || !ed25519.Verify(ed25519.PublicKey(clientPub), signed, sig) {
+		return nil, fmt.Errorf("signature verification failed")
 	}
+	serverSig := ed25519.Sign(s.identity.Private,
+		auth.Message(auth.LabelServer, clientPub, clientChallengeBytes, tlsHash, s.identity.Public))
 
 	// Узел перегружен, а сосед свободнее — отправляем клиента туда (§6.3).
 	// Только клиентам, которые объявили redirect_ok.
-	// Старым клиентам redirect не шлём: адреса соседей теперь на TLS-порту.
-	if v2 && authPayload.RedirectOK && s.cluster != nil {
+	if authPayload.RedirectOK && s.cluster != nil {
 		if target, ok := s.cluster.RedirectTarget(s.hub.Count()); ok {
 			addr := cluster.ClientAddr(target.Addr)
 			rsig := ed25519.Sign(s.identity.Private,
@@ -557,7 +542,7 @@ func (s *Server) authenticate(conn *websocket.Conn, tlsHash []byte) (*hub.Peer, 
 	}
 	if s.sfu.Endpoint != "" {
 		okPayload.SFUEndpoint = s.sfu.Endpoint
-		if v2 && s.sfu.TLSEndpoint != "" {
+		if s.sfu.TLSEndpoint != "" {
 			okPayload.SFUEndpoint = s.sfu.TLSEndpoint
 		}
 		okPayload.SFUSecret = s.sfu.Secret
@@ -588,8 +573,7 @@ func (s *Server) authenticate(conn *websocket.Conn, tlsHash []byte) (*hub.Peer, 
 		return nil, err
 	}
 	// Все узлы кластера — клиент сольёт их в свой список серверов (§6.1).
-	// Только клиентам v2: адреса узлов — TLS-порты.
-	if v2 && s.cluster != nil {
+	if s.cluster != nil {
 		slp, _ := json.Marshal(protocol.ServerListPayload{Nodes: s.cluster.ServerList()})
 		slMsg, _ := json.Marshal(protocol.Message{Type: protocol.TypeServerList, Payload: slp})
 		_ = conn.SetWriteDeadline(time.Now().Add(authWriteWait))

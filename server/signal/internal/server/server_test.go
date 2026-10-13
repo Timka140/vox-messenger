@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"messenger_signal/internal/auth"
 	"messenger_signal/internal/config"
 	"messenger_signal/internal/hub"
 	"messenger_signal/internal/identity"
@@ -27,9 +28,9 @@ func setupTestServer(t *testing.T) (*httptest.Server, *hub.Hub, *identity.Identi
 	h := hub.New(log)
 
 	cfg := config.WSConfig{
-		Host: "127.0.0.1",
-		Port: 0,
-		Path: "/ws",
+		Host:         "127.0.0.1",
+		Port:         0,
+		Path:         "/ws",
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -102,9 +103,10 @@ func connectAndAuthKey(t *testing.T, wsURL, nickTag string, expectedServerPubkey
 		}
 	}
 
-	// Подписываем server-side challenge
+	// Подписываем server-side challenge (вход v2 без TLS — пустой отпечаток)
 	challengeBytes, _ := hex.DecodeString(challengePayload.Challenge)
-	signature := ed25519.Sign(priv, challengeBytes)
+	srvPub, _ := hex.DecodeString(challengePayload.ServerPubkey)
+	signature := ed25519.Sign(priv, auth.Message(auth.LabelClient, srvPub, challengeBytes, nil, pub))
 
 	// Свой client_challenge для mutual auth
 	clientChallenge := make([]byte, 32)
@@ -117,6 +119,7 @@ func connectAndAuthKey(t *testing.T, wsURL, nickTag string, expectedServerPubkey
 		NickTag:         nickTag,
 		Signature:       hex.EncodeToString(signature),
 		ClientChallenge: hex.EncodeToString(clientChallenge),
+		AuthVersion:     auth.AuthVersion,
 		Presence:        pres,
 	})
 	authMsg, _ := json.Marshal(protocol.Message{
@@ -148,7 +151,8 @@ func connectAndAuthKey(t *testing.T, wsURL, nickTag string, expectedServerPubkey
 		if err != nil {
 			t.Fatal("decode server_signature:", err)
 		}
-		if !ed25519.Verify(expectedServerPubkey, clientChallenge, serverSig) {
+		want := auth.Message(auth.LabelServer, pub, clientChallenge, nil, expectedServerPubkey)
+		if !ed25519.Verify(expectedServerPubkey, want, serverSig) {
 			t.Fatal("server_signature does not verify")
 		}
 		if !okPayload.Presence {
@@ -259,13 +263,15 @@ func TestAuthMissingClientChallenge(t *testing.T) {
 	var challengePayload protocol.ChallengePayload
 	json.Unmarshal(challengeMsg.Payload, &challengePayload)
 	challengeBytes, _ := hex.DecodeString(challengePayload.Challenge)
-	signature := ed25519.Sign(priv, challengeBytes)
+	srvPub, _ := hex.DecodeString(challengePayload.ServerPubkey)
+	signature := ed25519.Sign(priv, auth.Message(auth.LabelClient, srvPub, challengeBytes, nil, pub))
 
 	// Auth без client_challenge — должен быть отвергнут сервером.
 	authPayload, _ := json.Marshal(protocol.AuthPayload{
-		PublicKey: hex.EncodeToString(pub),
-		NickTag:   "alice#1234567890abcdef",
-		Signature: hex.EncodeToString(signature),
+		PublicKey:   hex.EncodeToString(pub),
+		NickTag:     "alice#1234567890abcdef",
+		Signature:   hex.EncodeToString(signature),
+		AuthVersion: auth.AuthVersion,
 	})
 	authMsg, _ := json.Marshal(protocol.Message{Type: protocol.TypeAuth, Payload: authPayload})
 	conn.WriteMessage(websocket.TextMessage, authMsg)

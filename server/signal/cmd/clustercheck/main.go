@@ -19,6 +19,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"messenger_signal/internal/auth"
 	"messenger_signal/pkg/protocol"
 )
 
@@ -46,13 +47,15 @@ func dial(name, addr string, pub ed25519.PublicKey, priv ed25519.PrivateKey) *cl
 	var cp protocol.ChallengePayload
 	_ = json.Unmarshal(ch.Payload, &cp)
 	chBytes, _ := hex.DecodeString(cp.Challenge)
+	srvPub, _ := hex.DecodeString(cp.ServerPubkey)
 	cc := make([]byte, 32)
 	_, _ = rand.Read(cc)
 	ap, _ := json.Marshal(protocol.AuthPayload{
 		PublicKey:       c.hex(),
 		NickTag:         fmt.Sprintf("%s#%s", name, c.hex()[:16]),
-		Signature:       hex.EncodeToString(ed25519.Sign(priv, chBytes)),
+		Signature:       hex.EncodeToString(ed25519.Sign(priv, auth.Message(auth.LabelClient, srvPub, chBytes, nil, pub))),
 		ClientChallenge: hex.EncodeToString(cc),
+		AuthVersion:     auth.AuthVersion,
 	})
 	if err := conn.WriteJSON(protocol.Message{Type: protocol.TypeAuth, Payload: ap}); err != nil {
 		log.Fatalf("[%s] auth: %v", name, err)
