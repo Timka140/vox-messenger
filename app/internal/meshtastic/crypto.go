@@ -29,16 +29,16 @@ package meshtastic
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/sha512"
 	"errors"
 	"fmt"
 
-	"filippo.io/edwards25519"
 	"golang.org/x/crypto/nacl/box"
+
+	"vox_app/internal/e2e"
 )
 
 // Curve25519KeySize is the byte length of an X25519 public or secret key.
-const Curve25519KeySize = 32
+const Curve25519KeySize = e2e.KeySize
 
 // NonceSize is the byte length of the random nonce prefix in encrypted blobs.
 const NonceSize = 24
@@ -55,33 +55,14 @@ const MinCipherSize = NonceSize + MACSize
 // form) to its X25519 equivalent (32 bytes, Montgomery form). Returns error
 // if the input is not a valid curve point.
 func Ed25519PublicToCurve25519(pub ed25519.PublicKey) (*[Curve25519KeySize]byte, error) {
-	if len(pub) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("ed25519 pubkey: expected %d bytes, got %d", ed25519.PublicKeySize, len(pub))
-	}
-	p, err := new(edwards25519.Point).SetBytes(pub)
-	if err != nil {
-		return nil, fmt.Errorf("ed25519 pubkey decode: %w", err)
-	}
-	var out [Curve25519KeySize]byte
-	copy(out[:], p.BytesMontgomery())
-	return &out, nil
+	return e2e.PublicToX25519(pub)
 }
 
 // Ed25519PrivateToCurve25519 converts an Ed25519 private key (64 bytes:
 // seed||pubkey, as produced by crypto/ed25519) to its X25519 equivalent
-// (32 bytes, clamped per RFC 7748).
+// (32 bytes, clamped per RFC 7748). Shared with group/SFU encryption.
 func Ed25519PrivateToCurve25519(priv ed25519.PrivateKey) (*[Curve25519KeySize]byte, error) {
-	if len(priv) != ed25519.PrivateKeySize {
-		return nil, fmt.Errorf("ed25519 privkey: expected %d bytes, got %d", ed25519.PrivateKeySize, len(priv))
-	}
-	// RFC 8032: ed25519 signing scalar = SHA-512(seed)[:32] with curve25519 clamp.
-	digest := sha512.Sum512(priv[:32])
-	var out [Curve25519KeySize]byte
-	copy(out[:], digest[:32])
-	out[0] &= 248
-	out[31] &= 127
-	out[31] |= 64
-	return &out, nil
+	return e2e.PrivateToX25519(priv)
 }
 
 // EncryptForPeer authenticated-encrypts plaintext with the receiver's Ed25519

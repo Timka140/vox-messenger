@@ -964,7 +964,7 @@ func (s *MessagingService) dispatchP2P(fromPubKey string, data []byte, viaMesh b
 			s.voice.HandleVoiceP2P(fromPubKey, &msg)
 		}
 	case "group_invite", "group_message", "group_leave", "group_kick", "group_delete", "group_rename",
-		"group_message_edit", "group_message_delete", "group_rejoin", "member_added",
+		"group_message_edit", "group_message_delete", "group_rejoin", "member_added", "member_removed",
 		"group_voice_toggle", "group_join_request", "group_join_result":
 		if s.groups != nil {
 			s.groups.HandleGroupP2P(fromPubKey, &msg)
