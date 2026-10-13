@@ -65,11 +65,12 @@ if command -v ufw &>/dev/null; then
     ufw allow $TURN_PORT/tcp
     ufw allow $TURN_PORT/udp
     ufw allow 49152:65535/udp
-    ufw allow 9750/tcp comment 'Debug service HTTP'
     # Сигналка и SFU: без этих правил клиенты не подключаются (2026-09-07 —
     # после ребута VPS порт 9741 оказался закрыт, скрипт его не открывал).
     ufw allow 9741/tcp comment 'Vox signal server WS'
+    ufw allow 9743/tcp comment 'Vox signal WSS'
     ufw allow 9760/tcp comment 'Vox SFU'
+    ufw allow 9762/tcp comment 'Vox SFU TLS'
     echo "Firewall rules added"
 fi
 

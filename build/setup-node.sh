@@ -147,8 +147,10 @@ if command -v ufw >/dev/null 2>&1; then
     ufw allow "$TURN_PORT/udp" comment 'Vox TURN'
     ufw allow "$TURN_MIN:$TURN_MAX/udp" comment 'Vox TURN relay'
     ufw allow 9741/tcp comment 'Vox signal WS'
+    ufw allow 9743/tcp comment 'Vox signal WSS'
     ufw allow 9760/tcp comment 'Vox SFU'
-    ufw allow 9750/tcp comment 'Vox debug API'
+    ufw allow 9762/tcp comment 'Vox SFU TLS'
+    # debug API (9750) наружу не открываем: слушает 127.0.0.1, логи — через SSH
 else
     echo "ufw не установлен — правила не добавлены"
 fi

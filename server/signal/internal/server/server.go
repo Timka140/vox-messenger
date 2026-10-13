@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -61,6 +62,9 @@ type Server struct {
 	log       *slog.Logger
 	identity  *identity.Identity // ключ сервера для mutual auth
 	server    *http.Server
+	tlsServer *http.Server     // wss/https listener (nil — TLS выключен)
+	tlsCert   *tls.Certificate // самоподписанный сертификат узла (internal/tlscert)
+	tlsHash   []byte           // SHA-256 tlsCert — входит в подписи входа v2
 	logStore  *logstore.Store
 	debugSrv  *http.Server
 	logFile   string            // путь к vox-signal.log (для копирования своих логов)
@@ -114,6 +118,12 @@ func New(h *hub.Hub, cfg config.WSConfig, turn config.TURNConfig, sfu config.SFU
 		log:      log,
 		identity: id,
 	}
+}
+
+// SetTLS включает второй listener с сертификатом cert (SHA-256 — hash).
+func (s *Server) SetTLS(cert tls.Certificate, hash []byte) {
+	s.tlsCert = &cert
+	s.tlsHash = hash
 }
 
 // SetGroupStore включает серверный relay для больших групп.
@@ -219,6 +229,24 @@ func (s *Server) Start() error {
 		IdleTimeout:  s.cfg.IdleTimeout,
 	}
 
+	if s.tlsCert != nil && s.cfg.TLSPort > 0 {
+		s.tlsServer = &http.Server{
+			Addr:         fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.TLSPort),
+			Handler:      mux,
+			ReadTimeout:  s.cfg.ReadTimeout,
+			WriteTimeout: writeTimeout,
+			IdleTimeout:  s.cfg.IdleTimeout,
+			TLSConfig:    &tls.Config{Certificates: []tls.Certificate{*s.tlsCert}, MinVersion: tls.VersionTLS12},
+		}
+		go func() {
+			s.log.Info("TLS listener запускается", slog.String("addr", s.tlsServer.Addr),
+				slog.String("cert_sha256", hex.EncodeToString(s.tlsHash)))
+			if err := s.tlsServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				s.log.Error("TLS listener остановлен", slog.String("error", err.Error()))
+			}
+		}()
+	}
+
 	s.log.Info("сервер запускается", slog.String("addr", s.cfg.Addr()), slog.String("ws_path", s.cfg.Path))
 	return s.server.ListenAndServe()
 }
@@ -309,6 +337,9 @@ func (s *Server) handleUpdateDownload(w http.ResponseWriter, r *http.Request) {
 
 // Stop gracefully останавливает сервер
 func (s *Server) Stop(ctx context.Context) error {
+	if s.tlsServer != nil {
+		_ = s.tlsServer.Shutdown(ctx)
+	}
 	return s.server.Shutdown(ctx)
 }
 
@@ -355,8 +386,14 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	conn.SetReadLimit(maxMessageSize)
 
-	// Аутентификация: challenge-response
-	peer, err := s.authenticate(conn)
+	// Аутентификация: challenge-response. На TLS-соединении отпечаток нашего
+	// сертификата входит в подписи v2 — так клиент убеждается, что TLS
+	// заканчивается на этом узле, а не у посредника.
+	var tlsHash []byte
+	if r.TLS != nil {
+		tlsHash = s.tlsHash
+	}
+	peer, err := s.authenticate(conn, tlsHash)
 	if errors.Is(err, errNodeLink) || errors.Is(err, errRedirected) {
 		conn.Close()
 		return
@@ -390,7 +427,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	s.readLoop(peer)
 }
 
-func (s *Server) authenticate(conn *websocket.Conn) (*hub.Peer, error) {
+func (s *Server) authenticate(conn *websocket.Conn, tlsHash []byte) (*hub.Peer, error) {
 	// Генерируем challenge
 	challenge, err := auth.GenerateChallenge()
 	if err != nil {
@@ -434,7 +471,7 @@ func (s *Server) authenticate(conn *websocket.Conn) (*hub.Peer, error) {
 		if err := json.Unmarshal(msg.Payload, &np); err != nil {
 			return nil, fmt.Errorf("node_auth: %w", err)
 		}
-		if err := s.cluster.Accept(conn, challenge, np); err != nil {
+		if err := s.cluster.Accept(conn, challenge, np, tlsHash); err != nil {
 			return nil, fmt.Errorf("node_auth: %w", err)
 		}
 		return nil, errNodeLink
@@ -448,28 +485,55 @@ func (s *Server) authenticate(conn *websocket.Conn) (*hub.Peer, error) {
 		return nil, err
 	}
 
-	// Проверяем подпись клиента над server-side challenge
-	if err := auth.VerifySignature(authPayload.PublicKey, challenge, authPayload.Signature); err != nil {
-		return nil, err
-	}
-
-	// Mutual auth: подписываем client_challenge нашим ключом.
-	// Клиент проверит подпись против hardcoded/TOFU pubkey — это защищает от MITM
-	// поверх WS-адреса. Поле обязательное; пустой/невалидный challenge — отвал.
+	// Mutual auth. Поле client_challenge обязательное; пустой/невалидный — отвал.
 	clientChallengeBytes, err := hex.DecodeString(authPayload.ClientChallenge)
 	if err != nil || len(clientChallengeBytes) == 0 {
 		return nil, fmt.Errorf("invalid client_challenge")
 	}
-	serverSig := ed25519.Sign(s.identity.Private, clientChallengeBytes)
+	v2 := authPayload.AuthVersion >= auth.AuthVersion
+	if !v2 && tlsHash != nil {
+		return nil, fmt.Errorf("на TLS-порту нужен вход v2")
+	}
+	clientPub, err := hex.DecodeString(authPayload.PublicKey)
+	if err != nil || len(clientPub) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid public key")
+	}
+	var serverSig []byte
+	if v2 {
+		// Подписи с меткой и полями (internal/auth/v2.go): ни одна сторона не
+		// подписывает сырые чужие байты.
+		challengeBytes, _ := hex.DecodeString(challenge)
+		sig, err := hex.DecodeString(authPayload.Signature)
+		msg := auth.Message(auth.LabelClient, s.identity.Public, challengeBytes, tlsHash, clientPub)
+		if err != nil || !ed25519.Verify(ed25519.PublicKey(clientPub), msg, sig) {
+			return nil, fmt.Errorf("signature verification failed")
+		}
+		serverSig = ed25519.Sign(s.identity.Private,
+			auth.Message(auth.LabelServer, clientPub, clientChallengeBytes, tlsHash, s.identity.Public))
+	} else {
+		// Старый клиент (≤0086), только порт без TLS. Подпись сырого
+		// client_challenge — короткий переходный период; убрать после 0087.
+		if err := auth.VerifySignature(authPayload.PublicKey, challenge, authPayload.Signature); err != nil {
+			return nil, err
+		}
+		if len(clientChallengeBytes) != 32 {
+			return nil, fmt.Errorf("invalid client_challenge")
+		}
+		serverSig = ed25519.Sign(s.identity.Private, clientChallengeBytes)
+	}
 
 	// Узел перегружен, а сосед свободнее — отправляем клиента туда (§6.3).
 	// Только клиентам, которые объявили redirect_ok.
-	if authPayload.RedirectOK && s.cluster != nil {
+	// Старым клиентам redirect не шлём: адреса соседей теперь на TLS-порту.
+	if v2 && authPayload.RedirectOK && s.cluster != nil {
 		if target, ok := s.cluster.RedirectTarget(s.hub.Count()); ok {
+			addr := cluster.ClientAddr(target.Addr)
+			rsig := ed25519.Sign(s.identity.Private,
+				auth.Message(auth.LabelRedirect, clientChallengeBytes, []byte(addr), []byte(strings.ToLower(target.NodeID)), tlsHash))
 			rp, _ := json.Marshal(protocol.RedirectPayload{
-				Addr:            cluster.ClientAddr(target.Addr),
+				Addr:            addr,
 				Pubkey:          target.NodeID,
-				ServerSignature: hex.EncodeToString(serverSig),
+				ServerSignature: hex.EncodeToString(rsig),
 			})
 			data, _ := json.Marshal(protocol.Message{Type: protocol.TypeRedirect, Payload: rp})
 			_ = conn.SetWriteDeadline(time.Now().Add(authWriteWait))
@@ -493,6 +557,9 @@ func (s *Server) authenticate(conn *websocket.Conn) (*hub.Peer, error) {
 	}
 	if s.sfu.Endpoint != "" {
 		okPayload.SFUEndpoint = s.sfu.Endpoint
+		if v2 && s.sfu.TLSEndpoint != "" {
+			okPayload.SFUEndpoint = s.sfu.TLSEndpoint
+		}
 		okPayload.SFUSecret = s.sfu.Secret
 	}
 	okPayloadBytes, _ := json.Marshal(okPayload)
@@ -521,7 +588,8 @@ func (s *Server) authenticate(conn *websocket.Conn) (*hub.Peer, error) {
 		return nil, err
 	}
 	// Все узлы кластера — клиент сольёт их в свой список серверов (§6.1).
-	if s.cluster != nil {
+	// Только клиентам v2: адреса узлов — TLS-порты.
+	if v2 && s.cluster != nil {
 		slp, _ := json.Marshal(protocol.ServerListPayload{Nodes: s.cluster.ServerList()})
 		slMsg, _ := json.Marshal(protocol.Message{Type: protocol.TypeServerList, Payload: slp})
 		_ = conn.SetWriteDeadline(time.Now().Add(authWriteWait))

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,6 +23,7 @@ type Server struct {
 }
 
 type Config struct {
+	HTTPHost        string
 	HTTPPort        int
 	SignalDebugAddr string
 	LogDir          string
@@ -56,7 +59,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /api/collect/{peer}", s.handleCollectPeer)
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 
-	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.HTTPPort)
+	addr := net.JoinHostPort(s.cfg.HTTPHost, strconv.Itoa(s.cfg.HTTPPort))
 	s.httpServer = &http.Server{
 		Addr:         addr,
 		Handler:      withCORS(mux),

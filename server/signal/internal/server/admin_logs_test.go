@@ -17,6 +17,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"messenger_signal/internal/auth"
 	"messenger_signal/internal/config"
 	"messenger_signal/internal/hub"
 	"messenger_signal/internal/identity"
@@ -40,12 +41,14 @@ func dialVersion(t *testing.T, wsURL, nickTag, appVersion string) (*websocket.Co
 		t.Fatal(err)
 	}
 	cb, _ := hex.DecodeString(ch.Payload.Challenge)
+	srvPub, _ := hex.DecodeString(ch.Payload.ServerPubkey)
 	ap, _ := json.Marshal(protocol.AuthPayload{
 		PublicKey:       hex.EncodeToString(pub),
 		NickTag:         nickTag,
-		Signature:       hex.EncodeToString(ed25519.Sign(priv, cb)),
+		Signature:       hex.EncodeToString(ed25519.Sign(priv, auth.Message(auth.LabelClient, srvPub, cb, nil, pub))),
 		ClientChallenge: hex.EncodeToString([]byte("client-challenge")),
 		AppVersion:      appVersion,
+		AuthVersion:     auth.AuthVersion,
 	})
 	if err := conn.WriteJSON(protocol.Message{Type: protocol.TypeAuth, Payload: ap}); err != nil {
 		t.Fatal(err)

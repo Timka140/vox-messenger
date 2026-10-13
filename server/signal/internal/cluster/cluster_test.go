@@ -21,6 +21,7 @@ import (
 	"messenger_signal/internal/cluster"
 	"messenger_signal/internal/config"
 	"messenger_signal/internal/groupstore"
+	"messenger_signal/internal/auth"
 	"messenger_signal/internal/hub"
 	"messenger_signal/internal/identity"
 	"messenger_signal/internal/server"
@@ -219,9 +220,10 @@ func connect(t *testing.T, n *node, nick string, k keypair, pres *protocol.Prese
 	ap, _ := json.Marshal(protocol.AuthPayload{
 		PublicKey:       k.hex(),
 		NickTag:         nick,
-		Signature:       hex.EncodeToString(ed25519.Sign(k.priv, chBytes)),
+		Signature:       hex.EncodeToString(ed25519.Sign(k.priv, clientAuthMsg(cp, chBytes, k.pub))),
 		ClientChallenge: hex.EncodeToString(cc),
 		Presence:        pres,
+		AuthVersion:     auth.AuthVersion,
 	})
 	if err := conn.WriteJSON(protocol.Message{Type: protocol.TypeAuth, Payload: ap}); err != nil {
 		t.Fatal(err)
@@ -458,10 +460,11 @@ func authFirst(t *testing.T, n *node, k keypair, redirectOK bool) (protocol.Mess
 	ap, _ := json.Marshal(protocol.AuthPayload{
 		PublicKey:       k.hex(),
 		NickTag:         "x#" + k.hex()[:16],
-		Signature:       hex.EncodeToString(ed25519.Sign(k.priv, chBytes)),
+		Signature:       hex.EncodeToString(ed25519.Sign(k.priv, clientAuthMsg(cp, chBytes, k.pub))),
 		ClientChallenge: hex.EncodeToString(cc),
 		Presence:        watchOf(),
 		RedirectOK:      redirectOK,
+		AuthVersion:     auth.AuthVersion,
 	})
 	if err := conn.WriteJSON(protocol.Message{Type: protocol.TypeAuth, Payload: ap}); err != nil {
 		t.Fatal(err)
@@ -533,7 +536,8 @@ func TestServerListAndRedirect(t *testing.T) {
 		t.Fatalf("redirect не на узел 1: %+v", rp)
 	}
 	sig, _ := hex.DecodeString(rp.ServerSignature)
-	if !ed25519.Verify(nodes[0].id.Public, cc, sig) {
+	rmsg := auth.Message(auth.LabelRedirect, cc, []byte(rp.Addr), []byte(rp.Pubkey), nil)
+	if !ed25519.Verify(nodes[0].id.Public, rmsg, sig) {
 		t.Fatal("подпись redirect не сходится с ключом узла 0")
 	}
 }
@@ -874,7 +878,7 @@ func fakeDial(t *testing.T, n *node, id *identity.Identity) (*fakeNode, error) {
 	_, _ = rand.Read(cc)
 	ap, _ := json.Marshal(protocol.NodeAuthPayload{
 		NodeID:          id.PubKeyHex(),
-		Signature:       hex.EncodeToString(ed25519.Sign(id.Private, chBytes)),
+		Signature:       hex.EncodeToString(ed25519.Sign(id.Private, nodeAuthMsg(cp, chBytes, id.Public))),
 		ClientChallenge: hex.EncodeToString(cc),
 	})
 	if err := conn.WriteJSON(protocol.Message{Type: protocol.TypeNodeAuth, Payload: ap}); err != nil {
@@ -892,7 +896,7 @@ func fakeDial(t *testing.T, n *node, id *identity.Identity) (*fakeNode, error) {
 	var okp protocol.NodeAuthOKPayload
 	_ = json.Unmarshal(reply.Payload, &okp)
 	sig, _ := hex.DecodeString(okp.ServerSignature)
-	if !ed25519.Verify(n.id.Public, cc, sig) {
+	if !ed25519.Verify(n.id.Public, auth.Message(auth.LabelNodeOK, id.Public, cc, nil, n.id.Public), sig) {
 		t.Fatal("подпись настоящего узла не сходится")
 	}
 	_ = conn.SetReadDeadline(time.Time{})
@@ -1027,4 +1031,16 @@ func TestHandshakeRejects(t *testing.T) {
 	if _, err := fakeDial(t, n, smaller); err != nil {
 		t.Fatalf("узел с меньшим node_id из конфига должен пройти: %v", err)
 	}
+}
+
+// clientAuthMsg — подписываемые байты входа клиента v2 (без TLS).
+func clientAuthMsg(cp protocol.ChallengePayload, ch []byte, clientPub ed25519.PublicKey) []byte {
+	srv, _ := hex.DecodeString(cp.ServerPubkey)
+	return auth.Message(auth.LabelClient, srv, ch, nil, clientPub)
+}
+
+// nodeAuthMsg — подписываемые байты node_auth v2 (без TLS).
+func nodeAuthMsg(cp protocol.ChallengePayload, ch []byte, initiator ed25519.PublicKey) []byte {
+	recv, _ := hex.DecodeString(cp.ServerPubkey)
+	return auth.Message(auth.LabelNode, recv, ch, nil, initiator)
 }

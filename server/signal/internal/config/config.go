@@ -99,6 +99,8 @@ func (t TURNConfig) HasTURN() bool {
 
 type SFUConfig struct {
 	Endpoint string `yaml:"sfu_endpoint" env:"SFU_ENDPOINT" env-default:""`
+	// TLSEndpoint — wss-адрес SFU для клиентов со входом v2; пусто — Endpoint.
+	TLSEndpoint string `yaml:"sfu_tls_endpoint" env:"SFU_TLS_ENDPOINT" env-default:""`
 	Secret   string `yaml:"sfu_secret" env:"SFU_SECRET" env-default:""`
 }
 
@@ -106,6 +108,13 @@ type WSConfig struct {
 	Host string `yaml:"host" env:"WS_HOST" env-default:"0.0.0.0"`
 	Port int    `yaml:"port" env:"WS_PORT" env-default:"8080"`
 	Path string `yaml:"path" env:"WS_PATH" env-default:"/ws"`
+
+	// TLS: второй listener с самоподписанным сертификатом (internal/tlscert).
+	// 0 — выключен. Plain WS_PORT остаётся для старых клиентов и шлюза сайта.
+	TLSPort int    `yaml:"tls_port" env:"WS_TLS_PORT" env-default:"0"`
+	TLSCert string `yaml:"tls_cert" env:"TLS_CERT" env-default:"tls.crt"`
+	TLSKey  string `yaml:"tls_key" env:"TLS_KEY" env-default:"tls.key"`
+	TLSHost string `yaml:"tls_host" env:"TLS_HOST" env-default:""` // CN нового сертификата
 
 	ReadTimeout  time.Duration `yaml:"read_timeout" env:"WS_READ_TIMEOUT" env-default:"10s"`
 	WriteTimeout time.Duration `yaml:"write_timeout" env:"WS_WRITE_TIMEOUT" env-default:"10s"`

@@ -9,7 +9,10 @@ import (
 )
 
 type Config struct {
-	Env             string `yaml:"env" env:"ENV" env-default:"local"`
+	Env string `yaml:"env" env:"ENV" env-default:"local"`
+	// HTTPHost — по умолчанию только localhost: API без авторизации отдаёт
+	// логи, снаружи к нему ходят через SSH (build/fetch-logs.sh).
+	HTTPHost        string `yaml:"http_host" env:"DEBUG_HTTP_HOST" env-default:"127.0.0.1"`
 	HTTPPort        int    `yaml:"http_port" env:"HTTP_PORT" env-default:"9750"`
 	SignalDebugAddr string `yaml:"signal_debug_addr" env:"SIGNAL_DEBUG_ADDR" env-default:"localhost:9742"`
 	LogDir          string `yaml:"log_dir" env:"LOG_DIR" env-default:"./debug-logs"`
