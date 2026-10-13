@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"vox_app/internal/network"
 )
 
 const (
@@ -84,6 +87,7 @@ func (s *VoiceService) connectSFU(groupID string) {
 	}
 	endpoint := s.sfuEndpoint
 	secret := s.sfuSecret
+	certHash := s.sfuCertHash
 	if endpoint == "" || !s.sfuEnabled {
 		s.mu.Unlock()
 		return
@@ -104,7 +108,20 @@ func (s *VoiceService) connectSFU(groupID string) {
 
 	s.log.Info("SFU connecting", slog.String("group", safeShort8(groupID)), slog.String("endpoint", endpoint))
 
-	ws, _, err := websocket.DefaultDialer.Dial(url, nil)
+	// wss: SFU живёт на том же узле, что и сигналка, с тем же сертификатом —
+	// принимаем только его (отпечаток подтверждён ключом узла при входе).
+	dialer := *websocket.DefaultDialer
+	if strings.HasPrefix(endpoint, "wss://") {
+		if len(certHash) == 0 {
+			s.log.Warn("SFU wss без подтверждённого сертификата узла — не подключаюсь")
+			s.mu.Lock()
+			s.sfuActive = false
+			s.mu.Unlock()
+			return
+		}
+		dialer.TLSClientConfig = network.PinnedTLS(certHash)
+	}
+	ws, _, err := dialer.Dial(url, nil)
 	if err != nil {
 		s.log.Warn("SFU connect failed", slog.String("error", err.Error()))
 		s.mu.Lock()
@@ -445,11 +462,12 @@ func (s *VoiceService) LoadSFUSettings() {
 }
 
 // SetSFUConfig вызывается при получении SFU endpoint от signal server.
-func (s *VoiceService) SetSFUConfig(endpoint, secret string) {
+func (s *VoiceService) SetSFUConfig(endpoint, secret string, certHash []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sfuEndpoint = endpoint
 	s.sfuSecret = secret
+	s.sfuCertHash = certHash
 	s.log.Info("SFU config received",
 		slog.String("endpoint", endpoint),
 		slog.Bool("has_secret", secret != ""))

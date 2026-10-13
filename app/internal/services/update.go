@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/tls"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -137,6 +138,7 @@ type UpdateService struct {
 	currentRaw     string
 	publicKey      ed25519.PublicKey
 	getServerBase  func() string
+	getServerTLS   func() *tls.Config // закреплённый сертификат узла (SetServerTLS)
 	emit           func(string, any)
 	quit           func() // завершение после применения/отката (SetQuit)
 
@@ -164,9 +166,22 @@ type UpdateService struct {
 	retryDelays []time.Duration
 }
 
+// SetServerTLS — TLS-конфиг HTTP к узлу (NetworkService.ActiveSignalTLS):
+// обновления идут по https на TLS-порт с сертификатом, подтверждённым при входе.
+func (s *UpdateService) SetServerTLS(fn func() *tls.Config) { s.getServerTLS = fn }
+
+func (s *UpdateService) serverTLS() *tls.Config {
+	if s.getServerTLS == nil {
+		return nil
+	}
+	return s.getServerTLS()
+}
+
 // manifestClient — манифест маленький: общий таймаут, чтобы зависшее
 // соединение не держало горутину вечно.
-var manifestClient = &http.Client{Timeout: 15 * time.Second}
+func (s *UpdateService) manifestClient() *http.Client {
+	return &http.Client{Timeout: 15 * time.Second, Transport: &http.Transport{TLSClientConfig: s.serverTLS()}}
+}
 
 // confirmRetryDelays — паузы перед повторами confirmAndEmit, если манифест
 // не получен (сеть, рестарт узла). Уведомление об отзыве терять нельзя.
@@ -604,6 +619,7 @@ func (s *UpdateService) downloadOne(
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 30 * time.Second,
 			IdleConnTimeout:       90 * time.Second,
+			TLSClientConfig:       s.serverTLS(),
 		},
 	}
 	resp, err := client.Get(url)
@@ -1088,7 +1104,7 @@ func (s *UpdateService) fetchManifest() (*Manifest, error) {
 		return nil, fmt.Errorf("no active signal server connection")
 	}
 	url := serverBase + "/api/update/manifest"
-	resp, err := manifestClient.Get(url)
+	resp, err := s.manifestClient().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("manifest get: %w", err)
 	}

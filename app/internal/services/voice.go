@@ -203,6 +203,7 @@ type VoiceService struct {
 	sfuThreshold int               // порог участников для переключения (default 4)
 	sfuEndpoint  string            // от signal server auth_ok
 	sfuSecret    string            // HMAC shared secret от signal server
+	sfuCertHash  []byte            // SHA-256 сертификата узла из входа: SFU на том же узле с тем же сертификатом
 	sfuConn      *sfuConn          // nil когда не подключен к SFU
 	sfuActive    bool              // true = отправка идёт через SFU (не mesh)
 	sfuPeerHash  map[string]uint32 // peerID → hash (для отправки)

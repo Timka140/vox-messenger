@@ -29,6 +29,6 @@ const VPS2SignalPubkey = "000000000000000000000000000000000000000000000000000000
 // Обновление: при компрометации ключа deploy-signal.sh регенерит .key и
 // автоматически обновит VPSSignalPubkey; auto-update раскатает новый клиент.
 var KnownSignalServers = []KnownSignalServer{
-	{Address: "node1.example.org:9741", Pubkey: VPSSignalPubkey},
-	{Address: "node2.example.org:9741", Pubkey: VPS2SignalPubkey},
+	{Address: "node1.example.org:9743", Pubkey: VPSSignalPubkey},
+	{Address: "node2.example.org:9743", Pubkey: VPS2SignalPubkey},
 }

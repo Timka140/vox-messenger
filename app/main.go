@@ -261,6 +261,7 @@ func main() {
 	friendsSvc := services.NewFriendsService(logger, sess, store, networkSvc)
 	network.AppVersion = AppVersion
 	updateSvc := services.NewUpdateService(logger, AppVersion, UpdatePublicKey, networkSvc.ActiveSignalHTTPBase)
+	updateSvc.SetServerTLS(networkSvc.ActiveSignalTLS)
 	updateSvc.CleanupOldBackups()
 
 	// Graceful shutdown при выходе
