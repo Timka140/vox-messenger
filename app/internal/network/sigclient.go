@@ -43,6 +43,8 @@ const (
 	TypeCallAccept    = "call_accept"
 	TypeCallReject    = "call_reject"
 	TypeCallEnd       = "call_end"
+	TypeSFUTokenReq   = "sfu_token_req" // токен входа в комнату SFU выдаёт узел
+	TypeSFUToken      = "sfu_token"
 
 	// Debug: сбор логов
 	TypeLogPush    = "log_push"
@@ -283,7 +285,6 @@ type AuthOKPayload struct {
 	ServerSignature string             `json:"server_signature"`
 	LatestRelease   *LatestReleaseInfo `json:"latest_release,omitempty"`
 	SFUEndpoint     string             `json:"sfu_endpoint,omitempty"`
-	SFUSecret       string             `json:"sfu_secret,omitempty"`
 	Presence        bool               `json:"presence,omitempty"` // сервер понимает watch-списки
 }
 
@@ -326,10 +327,11 @@ type SignalClient struct {
 	// Колбэк при получении информации о последнем релизе (из auth_ok payload)
 	onLatestRelease func(*LatestReleaseInfo)
 	// Колбэк при получении SFU конфигурации (из auth_ok payload)
-	onSFUConfig func(endpoint, secret string)
+	onSFUConfig func(endpoint string)
 
 	// Каналы для синхронных запросов
 	peerResultCh chan []PeerInfo
+	sfuTokenCh   map[string]chan SFUTokenPayload // room → ожидающий RequestSFUToken
 
 	// ICE-серверы полученные от сигнального сервера при аутентификации
 	serverICEServers []ICEServerConfig
@@ -407,7 +409,7 @@ func (c *SignalClient) SetOnLatestRelease(fn func(*LatestReleaseInfo)) {
 }
 
 // SetOnSFUConfig устанавливает колбэк при получении SFU конфигурации от сигнального сервера.
-func (c *SignalClient) SetOnSFUConfig(fn func(endpoint, secret string)) {
+func (c *SignalClient) SetOnSFUConfig(fn func(endpoint string)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.onSFUConfig = fn
@@ -627,7 +629,7 @@ func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string,
 		}
 	}
 	if okPayload.SFUEndpoint != "" && c.onSFUConfig != nil {
-		c.onSFUConfig(okPayload.SFUEndpoint, okPayload.SFUSecret)
+		c.onSFUConfig(okPayload.SFUEndpoint)
 	}
 
 	// Читаем ice_servers (сервер отправляет сразу после auth_ok).
@@ -869,6 +871,48 @@ func (c *SignalClient) SearchPeersSync(query string, timeout time.Duration) ([]P
 	}
 }
 
+// SFUTokenPayload — ответ узла на sfu_token_req (зеркало server/signal/pkg/protocol).
+// Token = HMAC(SFU_SECRET, "peer:room:ts"), секрет SFU клиенту не выдаётся.
+type SFUTokenPayload struct {
+	Room  string `json:"room"`
+	Peer  string `json:"peer,omitempty"`
+	TS    int64  `json:"ts,omitempty"`
+	Token string `json:"token,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// RequestSFUToken просит у узла токен входа в комнату SFU и ждёт ответ.
+func (c *SignalClient) RequestSFUToken(room string, timeout time.Duration) (SFUTokenPayload, error) {
+	ch := make(chan SFUTokenPayload, 1)
+	c.mu.Lock()
+	if c.sfuTokenCh == nil {
+		c.sfuTokenCh = make(map[string]chan SFUTokenPayload)
+	}
+	c.sfuTokenCh[room] = ch
+	c.mu.Unlock()
+	drop := func() {
+		c.mu.Lock()
+		if c.sfuTokenCh[room] == ch {
+			delete(c.sfuTokenCh, room)
+		}
+		c.mu.Unlock()
+	}
+	if err := c.sendTyped(TypeSFUTokenReq, map[string]string{"room": room}); err != nil {
+		drop()
+		return SFUTokenPayload{}, err
+	}
+	select {
+	case p := <-ch:
+		if p.Error != "" {
+			return p, fmt.Errorf("sfu_token: %s", p.Error)
+		}
+		return p, nil
+	case <-time.After(timeout):
+		drop()
+		return SFUTokenPayload{}, fmt.Errorf("sfu_token timeout")
+	}
+}
+
 // SendFriendRequest отправляет заявку в друзья через signal server
 // SendUpdateNickTag сообщает серверу новый nick_tag для текущей сессии
 // без разрыва WS/P2P. Идентичность уже подтверждена при auth.
@@ -1074,6 +1118,20 @@ func (c *SignalClient) readLoop() {
 			c.mu.Unlock()
 			if fn != nil {
 				go fn()
+			}
+			continue
+		}
+
+		if msg.Type == TypeSFUToken {
+			var p SFUTokenPayload
+			if err := json.Unmarshal(msg.Payload, &p); err == nil {
+				c.mu.Lock()
+				ch := c.sfuTokenCh[p.Room]
+				delete(c.sfuTokenCh, p.Room)
+				c.mu.Unlock()
+				if ch != nil {
+					ch <- p
+				}
 			}
 			continue
 		}

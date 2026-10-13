@@ -24,7 +24,7 @@ The profile key (Ed25519) is created on your computer; it signs everything that 
 |---|---|
 | Direct messages, files, calls, screen sharing (P2P) | WebRTC DTLS; the SDP carrying the DTLS fingerprint is signed by the sender's key, so the server cannot become a man in the middle. TURN does not decrypt traffic |
 | Server-relayed groups (50+ members or by setting) | End-to-end encryption: XChaCha20-Poly1305, the message key is wrapped for each member (NaCl box), the author signs. The server stores only ciphertext, for up to 7 days. A new member reads the history from the moment they joined |
-| Voice rooms via SFU | End-to-end encryption of frames with ChaCha20-Poly1305 under the sender's key; keys are exchanged over P2P and rotated when someone leaves |
+| Voice rooms via SFU | End-to-end encryption of frames with ChaCha20-Poly1305 under the sender's key; keys are exchanged over P2P and rotated when someone leaves. Room access is a token the node issues for your profile key (for server-relayed groups — members only); the SFU secret never leaves the servers |
 | Client ↔ signaling server and SFU | TLS (`wss://`, port 9743, SFU 9762). The node certificate is self-signed; the node confirms its fingerprint with its key during login |
 | Between cluster nodes | TLS with the same key-based confirmation |
 | Local database and attachments | SQLCipher and AES-256-GCM; the key is stored next to the database (`vox.key`) |

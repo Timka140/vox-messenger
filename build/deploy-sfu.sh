@@ -5,7 +5,8 @@
 #   NODE=vps2 ./build/deploy-sfu.sh
 #
 # Секрет узла — build/remote/<node>/sfu.env. SFU_SECRET в нём обязан совпадать
-# с SFU_SECRET в .env сигналки того же узла (сигналка выдаёт его клиентам).
+# с SFU_SECRET в .env сигналки того же узла: сигналка подписывает им токены
+# входа в комнаты, клиентам сам секрет не выдаётся.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

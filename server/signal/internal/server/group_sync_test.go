@@ -53,13 +53,17 @@ type groupBench struct {
 	serverPub []byte
 }
 
-func newGroupBench(t *testing.T, maxMsgBytes int) *groupBench {
+func newGroupBench(t *testing.T, maxMsgBytes int, sfu ...config.SFUConfig) *groupBench {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	h := hub.New(log)
 	pub, priv := genKey(t)
 	id := &identity.Identity{Public: pub, Private: priv}
-	srv := New(h, config.WSConfig{Path: "/ws"}, config.TURNConfig{}, config.SFUConfig{}, log, id)
+	var sfuCfg config.SFUConfig
+	if len(sfu) > 0 {
+		sfuCfg = sfu[0]
+	}
+	srv := New(h, config.WSConfig{Path: "/ws"}, config.TURNConfig{}, sfuCfg, log, id)
 	gs, err := groupstore.Open(filepath.Join(t.TempDir(), "g.db"), id.PubKeyHex(), log)
 	if err != nil {
 		t.Fatal(err)

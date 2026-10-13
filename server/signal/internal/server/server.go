@@ -545,7 +545,6 @@ func (s *Server) authenticate(conn *websocket.Conn, tlsHash []byte) (*hub.Peer, 
 		if s.sfu.TLSEndpoint != "" {
 			okPayload.SFUEndpoint = s.sfu.TLSEndpoint
 		}
-		okPayload.SFUSecret = s.sfu.Secret
 	}
 	okPayloadBytes, _ := json.Marshal(okPayload)
 	okMsg, _ := json.Marshal(protocol.Message{Type: protocol.TypeAuthOK, Payload: okPayloadBytes})
@@ -704,6 +703,9 @@ func (s *Server) handleMessage(peer *hub.Peer, msg *protocol.Message) {
 		s.handleGroupMessageSend(peer, msg)
 	case protocol.TypeGroupSync:
 		s.handleGroupSync(peer, msg)
+
+	case protocol.TypeSFUTokenReq:
+		s.handleSFUTokenReq(peer, msg)
 
 	case protocol.TypeLogPush:
 		if s.logStore == nil {
