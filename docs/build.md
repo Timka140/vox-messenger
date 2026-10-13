@@ -306,8 +306,10 @@ SSH-доступ к узлу — `build/remote/<node>/ssh.conf`.
 
 | Порт | Назначение |
 |---|---|
-| 9741 | Signal WS + `/api/update/*` + `/health`, `/healthz` |
+| 9741 | Signal WS без TLS: старые клиенты, шлюз сайта (админка, скачивание), `/api/update/*`, `/health`, `/healthz` |
+| 9743 | Signal WSS/HTTPS (`WS_TLS_PORT`): клиенты, линки кластера; самоподписанный `tls.crt` в каталоге узла |
 | 9742 | Debug HTTP сигналки (только localhost, если задан `DEBUG_PORT`) |
 | 9750 | Debug logs API (`server/debug`, если запущен) |
-| 9760 | SFU (WS) |
+| 9760 | SFU (WS, старые клиенты) |
+| 9762 | SFU WSS (`SFU_TLS_PORT`), сертификат сигналки того же узла |
 | 3478 | TURN (coturn) |
