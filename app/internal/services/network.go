@@ -596,6 +596,7 @@ func (s *NetworkService) Connect(listenAddr, dialAddr, seedAddr string) error {
 		s.onP2PStateChanged,
 	)
 	pm.SetOnDataChannelReady(s.onDataChannelReady)
+	pm.SetSigner(privKey)         // подпись offer/answer ключом профиля (network/sdpsign.go)
 	pm.SetIsBlocked(s.IsBlocked) // заблокированный: offer отклоняется (blocklist.go)
 	pm.SetOnAttachDCOpen(func(pubKey string) {
 		s.log.Debug("attach DC ready → доставка pending вложений",
@@ -632,7 +633,7 @@ func (s *NetworkService) Connect(listenAddr, dialAddr, seedAddr string) error {
 	client.SetOnLatestRelease(hint.set)
 	client.SetOnSFUConfig(func(endpoint, secret string) {
 		if s.voice != nil {
-			s.voice.SetSFUConfig(endpoint, secret)
+			s.voice.SetSFUConfig(endpoint, secret, client.TLSCertHash())
 		}
 	})
 	client.SetPresenceProvider(s.presenceForAuth) // статус «в сети» — presence.go
@@ -804,7 +805,7 @@ func (s *NetworkService) ReconnectSignal() error {
 	newClient.SetOnLatestRelease(hint.set)
 	newClient.SetOnSFUConfig(func(endpoint, secret string) {
 		if s.voice != nil {
-			s.voice.SetSFUConfig(endpoint, secret)
+			s.voice.SetSFUConfig(endpoint, secret, newClient.TLSCertHash())
 		}
 	})
 	newClient.SetPresenceProvider(s.presenceForAuth)

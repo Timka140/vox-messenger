@@ -3,6 +3,10 @@
 package network
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"strings"
@@ -16,7 +20,7 @@ import (
 // policy All + loopback). Воспроизводят сценарии 2026-09-08, когда медиа-канал
 // зависал навсегда в «initiateConnection пропущен: уже инициируем».
 //
-// Ключи: "a1…" < "b2…" ⇒ A polite, B impolite (см. HandleOffer).
+// Ключи: hex(A) < hex(B) (orderedKeys) ⇒ A polite, B impolite (см. HandleOffer).
 
 // glareRouter — однонаправленный маршрутизатор с фильтром drop. Как dirRouter
 // в services/screenshare_p2p_voxdebug_test.go держит порядок «SDP раньше ICE»
@@ -83,9 +87,10 @@ type glarePair struct {
 
 func newGlarePair(t *testing.T) *glarePair {
 	t.Helper()
+	privA, privB := orderedKeys(t)
 	p := &glarePair{
-		pkA: strings.Repeat("a1", 32),
-		pkB: strings.Repeat("b2", 32),
+		pkA: hex.EncodeToString(privA.Public().(ed25519.PublicKey)),
+		pkB: hex.EncodeToString(privB.Public().(ed25519.PublicKey)),
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	noopMsg := func(string, []byte) {}
@@ -104,11 +109,65 @@ func newGlarePair(t *testing.T) *glarePair {
 		noopMsg, func(string, bool) {})
 	p.pmA.SetICEServers(nil)
 	p.pmB.SetICEServers(nil)
+	p.pmA.SetSigner(privA)
+	p.pmB.SetSigner(privB)
 	t.Cleanup(func() {
 		p.pmA.CloseAll()
 		p.pmB.CloseAll()
 	})
 	return p
+}
+
+// orderedKeys — два ключа профиля, hex(A) < hex(B): A — polite-сторона
+// (тесты glare на это опираются, как раньше на "a1…" < "b2…").
+func orderedKeys(t *testing.T) (ed25519.PrivateKey, ed25519.PrivateKey) {
+	t.Helper()
+	for {
+		pa, a, _ := ed25519.GenerateKey(rand.Reader)
+		pb, b, _ := ed25519.GenerateKey(rand.Reader)
+		if hex.EncodeToString(pa) < hex.EncodeToString(pb) {
+			return a, b
+		}
+	}
+}
+
+// TestSDPSignature_TamperedFingerprintRejected — посредник подменяет
+// DTLS-отпечаток в offer. Подпись не сходится, offer отвергается, соединения
+// нет. Без подмены та же пара соединяется (контроль).
+func TestSDPSignature_TamperedFingerprintRejected(t *testing.T) {
+	p := newGlarePair(t)
+	p.aToB.setDrop(func(m *Message) bool {
+		if m.Type != TypeOffer {
+			return false
+		}
+		var raw map[string]any
+		_ = json.Unmarshal(m.Payload, &raw)
+		sdp, _ := raw["sdp"].(string)
+		i := strings.Index(sdp, "a=fingerprint:sha-256 ")
+		if i < 0 {
+			t.Error("в offer нет отпечатка")
+			return false
+		}
+		j := i + len("a=fingerprint:sha-256 ")
+		raw["sdp"] = sdp[:j] + "00" + sdp[j+2:]
+		m.Payload, _ = json.Marshal(raw)
+		return false
+	})
+	if err := p.pmA.InitiateConnection(p.pkB); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(3 * time.Second)
+	if hasPC, _, _ := mediaSlot(p.pmB, p.pkA); hasPC {
+		t.Fatal("B принял offer с подменённым отпечатком")
+	}
+
+	q := newGlarePair(t)
+	if err := q.pmA.InitiateConnection(q.pkB); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, 20*time.Second, "контрольная пара соединилась", func() bool {
+		return q.pmA.IsConnected(q.pkB) && q.pmB.IsConnected(q.pkA)
+	})
 }
 
 func waitUntil(t *testing.T, timeout time.Duration, what string, cond func() bool) {

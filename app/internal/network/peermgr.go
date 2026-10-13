@@ -1,6 +1,7 @@
 package network
 
 import (
+	"crypto/ed25519"
 	"context"
 	"encoding/json"
 	"errors"
@@ -247,6 +248,7 @@ type PeerManager struct {
 	onAttachDCOpen     func(pubKey string)       // "attachments" DC открыт — можно слать manifest/чанки
 	sendSignal         SendSignal
 	myPubKey           string
+	signKey            ed25519.PrivateKey // ключ профиля: подпись offer/answer (sdpsign.go)
 	customICEServers   []webrtc.ICEServer // пользовательские ICE/TURN серверы
 }
 
@@ -571,16 +573,16 @@ func (pm *PeerManager) initiateConnection(remotePubKey string, callOnly bool, ki
 	}
 	pm.mu.Unlock()
 
-	// Отправляем offer через сигнальный сервер
-	sdpBytes, err := json.Marshal(offer)
+	// Отправляем offer через сигнальный сервер (подписанный — sdpsign.go)
+	offerPayload, err := pm.signedSDP(offer, remotePubKey, int(kind))
 	if err != nil {
 		pm.closePeerKind(remotePubKey, kind)
-		return fmt.Errorf("%s: marshal offer: %w", op, err)
+		return fmt.Errorf("%s: sign offer: %w", op, err)
 	}
 	if err := pm.signal(&Message{
 		Type:    TypeOffer,
 		To:      remotePubKey,
-		Payload: injectPcID(sdpBytes, int(kind)),
+		Payload: offerPayload,
 		PcId:    int(kind),
 	}); err != nil {
 		pm.closePeerKind(remotePubKey, kind)
@@ -638,6 +640,16 @@ func (pm *PeerManager) HandleOffer(fromPubKey string, payload json.RawMessage, p
 	}
 	pcId = resolvePcID(pcId, payload)
 	kind := clampKind(pcId)
+
+	// Подпись собеседника — до любых решений по слоту: неподписанная смена
+	// DTLS-отпечатка иначе выглядела бы как «пир пересоздал PC».
+	if _, err := pm.verifySDP(fromPubKey, payload, pcId); err != nil {
+		pm.log.Warn("offer отвергнут: подпись SDP",
+			slog.String("from", safeShort(fromPubKey)),
+			slog.Int("pcId", pcId),
+			slog.String("error", err.Error()))
+		return fmt.Errorf("%s: %w", op, err)
+	}
 
 	// Collision detection: если мы уже инициируем соединение для ЭТОГО же PC
 	pm.mu.RLock()
@@ -875,15 +887,15 @@ func (pm *PeerManager) HandleOffer(fromPubKey string, payload json.RawMessage, p
 		return fmt.Errorf("%s: set local desc: %w", op, err)
 	}
 
-	sdpBytes, err := json.Marshal(answer)
+	answerPayload, err := pm.signedSDP(answer, fromPubKey, pcId)
 	if err != nil {
 		pc.Close()
-		return fmt.Errorf("%s: marshal answer: %w", op, err)
+		return fmt.Errorf("%s: sign answer: %w", op, err)
 	}
 	if err := pm.signal(&Message{
 		Type:    TypeAnswer,
 		To:      fromPubKey,
-		Payload: injectPcID(sdpBytes, pcId),
+		Payload: answerPayload,
 		PcId:    pcId,
 	}); err != nil {
 		pc.Close()
@@ -1125,6 +1137,13 @@ func (pm *PeerManager) HandleAnswer(fromPubKey string, payload json.RawMessage, 
 	const op = "PeerManager.HandleAnswer"
 	pcId = resolvePcID(pcId, payload)
 	kind := clampKind(pcId)
+	if _, err := pm.verifySDP(fromPubKey, payload, pcId); err != nil {
+		pm.log.Warn("answer отвергнут: подпись SDP",
+			slog.String("from", safeShort(fromPubKey)),
+			slog.Int("pcId", pcId),
+			slog.String("error", err.Error()))
+		return fmt.Errorf("%s: %w", op, err)
+	}
 
 	pm.mu.RLock()
 	peer, ok := pm.peers[fromPubKey]
@@ -1774,11 +1793,14 @@ func (pm *PeerManager) handleICERestartOffer(fromPubKey string, pc *webrtc.PeerC
 		return fmt.Errorf("ICE restart: set local desc: %w", err)
 	}
 
-	sdpBytes, _ := json.Marshal(answer)
+	answerPayload, err := pm.signedSDP(answer, fromPubKey, int(kind))
+	if err != nil {
+		return fmt.Errorf("ICE restart: sign answer: %w", err)
+	}
 	if err := pm.signal(&Message{
 		Type:    TypeAnswer,
 		To:      fromPubKey,
-		Payload: injectPcID(sdpBytes, int(kind)),
+		Payload: answerPayload,
 		PcId:    int(kind),
 	}); err != nil {
 		return fmt.Errorf("ICE restart: send answer: %w", err)
@@ -1916,11 +1938,16 @@ func (pm *PeerManager) tryICERestart(remotePubKey string) {
 		return
 	}
 
-	sdpBytes, _ := json.Marshal(offer)
+	restartPayload, signErr := pm.signedSDP(offer, remotePubKey, int(pcKindMedia))
+	if signErr != nil {
+		pm.log.Warn("ICE restart: не удалось подписать offer", slog.String("error", signErr.Error()))
+		pm.fullReconnect(remotePubKey, thisPC)
+		return
+	}
 	if err := pm.signal(&Message{
 		Type:    TypeOffer,
 		To:      remotePubKey,
-		Payload: injectPcID(sdpBytes, int(pcKindMedia)),
+		Payload: restartPayload,
 		PcId:    int(pcKindMedia), // ICE restart применяется только к media PC
 	}); err != nil {
 		pm.log.Warn("ICE restart: ошибка отправки offer",
