@@ -66,6 +66,17 @@ export async function showSettings() {
     renderBubbleSwatches();
     syncSoundControls();
 
+    // Анонимные логи: по умолчанию включено, выключено — только "0".
+    if (diagLogsToggle) {
+        svc("GetSetting", "diag_logs_enabled").then(function (v) {
+            diagLogsToggle.checked = v !== "0";
+        }).catch(function () {});
+    }
+    var diagIdEl = document.getElementById("diag-log-id");
+    if (diagIdEl) {
+        svc("GetDiagLogID").then(function (id) { diagIdEl.textContent = id || "—"; }).catch(function () {});
+    }
+
     // Updates section
     try {
         var cur = await svc("GetCurrentVersion");
@@ -1183,6 +1194,20 @@ if (logsExportBtn) {
             flog("ERR", "frontend.settings", "export logs: " + err);
             showInfo(t("settings.diag.export_failed"));
         }).finally(function () { logsExportBtn.disabled = false; });
+    });
+}
+
+var diagLogsToggle = document.getElementById("diag-logs-toggle");
+if (diagLogsToggle) {
+    diagLogsToggle.addEventListener("change", function () {
+        svcQuiet("SaveSetting", "diag_logs_enabled", diagLogsToggle.checked ? "1" : "0");
+    });
+}
+var diagIdCopy = document.getElementById("diag-log-id-copy");
+if (diagIdCopy) {
+    diagIdCopy.addEventListener("click", function () {
+        var el = document.getElementById("diag-log-id");
+        try { navigator.clipboard.writeText(el ? el.textContent : ""); } catch (e) {}
     });
 }
 

@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -85,7 +86,7 @@ func TestAdminLogsCollectOnlineVersions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	srv.SetLogStore(logstore.New(base, log), "")
+	srv.SetLogStore(logstore.New(base, logstore.Options{}, log), "")
 	srv.SetAdmin(adminTestToken, nil)
 	handler := srv.Handler()
 	ts := httptest.NewServer(handler)
@@ -176,4 +177,61 @@ func TestValidAppVersion(t *testing.T) {
 			t.Fatalf("%q accepted", v)
 		}
 	}
+}
+
+// TestLogPushAnonSource — log_push принимается только под анонимным id;
+// по нему же работают «в сети» и адресный collect.
+func TestLogPushAnonSource(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	h := hub.New(log)
+	srv := New(h, config.WSConfig{Path: "/ws"}, config.TURNConfig{}, config.SFUConfig{}, log,
+		&identity.Identity{Public: pub, Private: priv})
+	base := t.TempDir()
+	srv.SetLogStore(logstore.New(base, logstore.Options{}, log), "")
+	srv.SetAdmin(adminTestToken, nil)
+	handler := srv.Handler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws"
+
+	alice, _ := dialVersion(t, wsURL, "Alice#aa", "")
+	defer alice.Close()
+	aliceCh := pump(alice)
+
+	push := func(source string) {
+		p, _ := json.Marshal(protocol.LogPushPayload{Source: source, ChunkIdx: 0, ChunkTotal: 1,
+			Data: base64.StdEncoding.EncodeToString([]byte(`{"level":"INFO","msg":"x"}` + "\n"))})
+		if err := alice.WriteJSON(protocol.Message{Type: protocol.TypeLogPush, Payload: p}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const id = "anon-0123456789abcdef"
+	push("Alice#aa")
+	push(id)
+	deadline := time.Now().Add(3 * time.Second)
+	for !exists(filepath.Join(base, id)) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	entries, _ := os.ReadDir(base)
+	if len(entries) != 1 || entries[0].Name() != id {
+		t.Fatalf("каталоги логов: %v", entries)
+	}
+
+	w := signedReq(handler, "GET", "/admin/v1/logs/sources", nil)
+	if !strings.Contains(w.Body.String(), `"name":"`+id+`"`) || !strings.Contains(w.Body.String(), `"online":true`) {
+		t.Fatalf("sources %s", w.Body)
+	}
+	w = signedReq(handler, "POST", "/admin/v1/logs/collect", []byte(`{"sources":["`+id+`"]}`))
+	if w.Code != 200 || strings.TrimSpace(w.Body.String()) != `{"sent":1}` {
+		t.Fatalf("collect по id %d %s", w.Code, w.Body)
+	}
+	if n := logRequests(aliceCh, 300*time.Millisecond); n != 1 {
+		t.Fatalf("log_request %d", n)
+	}
+}
+
+func exists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }

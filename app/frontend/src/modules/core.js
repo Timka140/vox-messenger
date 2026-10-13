@@ -21,7 +21,7 @@ var _routes = {
     // NetworkService
     Connect: "NetworkService", Disconnect: "NetworkService",
     GetSignalServers: "NetworkService", AddSignalServer: "NetworkService", RemoveSignalServer: "NetworkService",
-    GetCustomSeeds: "NetworkService",
+    GetCustomSeeds: "NetworkService", GetDiagLogID: "NetworkService",
     // Блокировка (фаза 7b, services/blocklist.go)
     BlockPeer: "NetworkService", UnblockPeer: "NetworkService", GetBlockedPeers: "NetworkService",
     SaveICEServers: "NetworkService", GetICEServers: "NetworkService", GetICEServersSource: "NetworkService", ResetICEServers: "NetworkService",

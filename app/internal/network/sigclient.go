@@ -793,7 +793,7 @@ func (c *SignalClient) SendGroupSync(groupID string, cursors map[string]int64, l
 }
 
 // SendLogPush отправляет логи на сервер с chunking (48KB на чанк)
-func (c *SignalClient) SendLogPush(nickTag string, logData []byte) error {
+func (c *SignalClient) SendLogPush(source string, logData []byte) error {
 	const chunkSize = 48000 // ~48KB raw → ~64KB base64
 
 	encoded := base64.StdEncoding.EncodeToString(logData)
@@ -810,7 +810,7 @@ func (c *SignalClient) SendLogPush(nickTag string, logData []byte) error {
 		}
 
 		payload, err := json.Marshal(LogPushPayload{
-			Source:     nickTag,
+			Source:     source,
 			ChunkIdx:   i,
 			ChunkTotal: total,
 			Data:       encoded[start:end],
@@ -825,7 +825,7 @@ func (c *SignalClient) SendLogPush(nickTag string, logData []byte) error {
 	}
 
 	c.log.Debug("логи отправлены на сервер",
-		slog.String("source", nickTag),
+		slog.String("source", source),
 		slog.Int("chunks", total),
 		slog.Int("bytes", len(logData)))
 	return nil

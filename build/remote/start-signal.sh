@@ -17,6 +17,8 @@ if [ -f "$DIR/cluster.env" ]; then
     source "$DIR/cluster.env"
 fi
 set +a
+# stdout прошлого запуска (паники) — в .1, файл не копится бесконечно.
+[ -f signal-server.log ] && mv -f signal-server.log signal-server.log.1
 nohup ./signal-server > signal-server.log 2>&1 &
 echo $! > "$PIDFILE"
 echo "signal-server started (PID $!)"

@@ -53,7 +53,7 @@ func main() {
 	}
 
 	if logFile != nil {
-		redirectStderr(logFile)
+		logFile.SetOnOpen(redirectStderr)
 	}
 
 	logger.Info("запуск сигнального сервера",
@@ -157,7 +157,11 @@ func main() {
 
 	// Debug log collection
 	if cfg.Debug.Port > 0 {
-		store := logstore.New(cfg.Debug.Dir, logger)
+		store := logstore.New(cfg.Debug.Dir, logstore.Options{
+			MaxTotal:      int64(cfg.Debug.MaxTotalMB) << 20,
+			MaxAge:        time.Duration(cfg.Debug.MaxAgeDays) * 24 * time.Hour,
+			KeepPerSource: cfg.Debug.KeepPerSource,
+		}, logger)
 		srv.SetLogStore(store, "vox-signal.log")
 		go func() {
 			if err := srv.StartDebug(cfg.Debug.Host, cfg.Debug.Port); err != nil {
@@ -167,7 +171,9 @@ func main() {
 		logger.Info("debug log collection включён",
 			slog.String("host", cfg.Debug.Host),
 			slog.Int("port", cfg.Debug.Port),
-			slog.String("dir", cfg.Debug.Dir))
+			slog.String("dir", cfg.Debug.Dir),
+			slog.Int("max_total_mb", cfg.Debug.MaxTotalMB),
+			slog.Int("max_age_days", cfg.Debug.MaxAgeDays))
 	}
 
 	// Admin API /admin/v1/* — после всех хранилищ: Handler собирается при Start.
@@ -232,7 +238,7 @@ func setupAdmin(srv *server.Server, cfg config.AdminConfig, logger *slog.Logger)
 	logger.Info("admin API включён", slog.Bool("release_pubkey", pub != nil))
 }
 
-func setupLogger(env string) (*slog.Logger, *os.File) {
+func setupLogger(env string) (*slog.Logger, *rotatingFile) {
 	switch env {
 	case envLocal:
 		return setupPrettySlog()
@@ -245,7 +251,7 @@ func setupLogger(env string) (*slog.Logger, *os.File) {
 	}
 }
 
-func setupPrettySlog() (*slog.Logger, *os.File) {
+func setupPrettySlog() (*slog.Logger, *rotatingFile) {
 	opts := slogpretty.PrettyHandlerOptions{
 		SlogOpts: &slog.HandlerOptions{
 			Level: slog.LevelDebug,
@@ -253,8 +259,8 @@ func setupPrettySlog() (*slog.Logger, *os.File) {
 	}
 	prettyHandler := opts.NewPrettyHandler(os.Stdout)
 
-	// Лог-файл для отладки (дописывается при перезапуске)
-	f, err := os.OpenFile("vox-signal.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// Лог-файл для отладки (дописывается при перезапуске, ротация по размеру)
+	f, err := openRotatingFile("vox-signal.log", logFileMax)
 	if err != nil {
 		return slog.New(prettyHandler), nil
 	}
@@ -308,13 +314,19 @@ func (h *multiHandler) WithGroup(name string) slog.Handler {
 	return &multiHandler{handlers: handlers}
 }
 
-func setupJSONSlog(level slog.Level) (*slog.Logger, *os.File) {
-	f, err := os.OpenFile("vox-signal.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func setupJSONSlog(level slog.Level) (*slog.Logger, *rotatingFile) {
+	f, err := openRotatingFile("vox-signal.log", logFileMax)
 	if err != nil {
 		return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})), nil
 	}
 
-	jsonStdout := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	// В stdout (nohup → signal-server.log) — только предупреждения и ошибки:
+	// полный лог уже в vox-signal.log, дубль съедал диск узла.
+	stdoutLevel := level
+	if stdoutLevel < slog.LevelWarn {
+		stdoutLevel = slog.LevelWarn
+	}
+	jsonStdout := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: stdoutLevel})
 	jsonFile := slog.NewJSONHandler(f, &slog.HandlerOptions{Level: level})
 	return slog.New(newMultiHandler(jsonStdout, jsonFile)), f
 }

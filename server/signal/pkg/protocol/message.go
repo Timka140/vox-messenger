@@ -238,7 +238,7 @@ type CallResponsePayload struct {
 
 // LogPushPayload — клиент отправляет логи на сервер (с поддержкой chunking)
 type LogPushPayload struct {
-	Source     string `json:"source"`      // nick_tag клиента
+	Source     string `json:"source"`      // анонимный id установки (anon-<16 hex>)
 	ChunkIdx   int    `json:"chunk_idx"`   // индекс чанка (0-based)
 	ChunkTotal int    `json:"chunk_total"` // всего чанков
 	Data       string `json:"data"`        // base64-encoded лог-данные

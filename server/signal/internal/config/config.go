@@ -71,6 +71,10 @@ type DebugConfig struct {
 	Host string `yaml:"debug_host" env:"DEBUG_HOST" env-default:"127.0.0.1"`
 	Port int    `yaml:"debug_port" env:"DEBUG_PORT" env-default:"0"`
 	Dir  string `yaml:"debug_dir" env:"DEBUG_DIR" env-default:"./debug-logs"`
+	// Пределы хранения логов клиентов (диск узла маленький).
+	MaxTotalMB    int `yaml:"debug_max_total_mb" env:"DEBUG_MAX_TOTAL_MB" env-default:"1024"`
+	MaxAgeDays    int `yaml:"debug_max_age_days" env:"DEBUG_MAX_AGE_DAYS" env-default:"14"`
+	KeepPerSource int `yaml:"debug_keep_per_source" env:"DEBUG_KEEP_PER_SOURCE" env-default:"10"`
 }
 
 // AdminConfig — admin API /admin/v1/* (design/northwind-site/ADMIN-CONTRACT.md §1).
