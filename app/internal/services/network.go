@@ -570,7 +570,7 @@ func (s *NetworkService) Connect(listenAddr, dialAddr, seedAddr string) error {
 	// Останавливаем предыдущий reconnect loop (если был)
 	s.stopReconnectLoop()
 
-	s.log.Info("подключение к сигнальному серверу", slog.String("nick_tag", nickTag))
+	s.log.Info("подключение к сигнальному серверу")
 
 	// Получаем список серверов из БД (с pubkey для mutual auth)
 	servers, err := s.getServerEntries()
@@ -755,7 +755,7 @@ func (s *NetworkService) UpdateNickTag() error {
 	if err := client.SendUpdateNickTag(nickTag); err != nil {
 		return fmt.Errorf("NetworkService.UpdateNickTag: %w", err)
 	}
-	s.log.Info("📛 nick_tag отправлен на сигналку", slog.String("nick_tag", nickTag))
+	s.log.Info("📛 nick_tag отправлен на сигналку")
 	return nil
 }
 
@@ -787,7 +787,7 @@ func (s *NetworkService) ReconnectSignal() error {
 		return fmt.Errorf("%s: нет серверов", op)
 	}
 
-	s.log.Info("переподключение к сигнальному серверу", slog.String("nick_tag", nickTag))
+	s.log.Info("переподключение к сигнальному серверу")
 
 	newClient := network.NewSignalClient(s.log, s.onSignalMessage)
 	// Callbacks ДО Connect — auth_ok парсится внутри Connect
@@ -795,6 +795,10 @@ func (s *NetworkService) ReconnectSignal() error {
 		s.log.Warn("связь с сигнальным сервером потеряна")
 		s.emitEvent("vox:signal-updated", nil)
 		s.startReconnectLoop()
+	})
+	newClient.SetOnLogRequest(func() {
+		s.log.Info("📋 сервер запросил логи")
+		s.pushLogsToServer()
 	})
 	hint := &releaseHint{}
 	newClient.SetOnLatestRelease(hint.set)
@@ -905,8 +909,11 @@ func (s *NetworkService) Shutdown() {
 // и предыдущую сессию (после крэша/перезагрузки), затем удаляет маркер.
 // Перед отправкой каждый файл проходит logsafe.ScrubFile: прошлые сессии могли
 // быть записаны версией, которая ещё писала личное.
+// Настройка «Отправлять анонимные логи» выключена — не отправляется ничего
+// (ни при подключении, ни на выходе, ни по log_request); логи уходят под
+// анонимным id установки (network_diaglogs.go), не под ником.
 func (s *NetworkService) pushLogsToServer() {
-	if s.logFilePath == "" {
+	if s.logFilePath == "" || !s.diagLogsEnabled() {
 		return
 	}
 
@@ -918,9 +925,9 @@ func (s *NetworkService) pushLogsToServer() {
 		return
 	}
 
-	nickTag, err := s.getNickTag()
+	logID, err := s.diagLogID()
 	if err != nil {
-		s.log.Warn("pushLogs: не удалось получить nickTag", slog.String("error", err.Error()))
+		s.log.Warn("pushLogs: не удалось получить id логов", slog.String("error", err.Error()))
 		return
 	}
 
@@ -940,7 +947,7 @@ func (s *NetworkService) pushLogsToServer() {
 			continue
 		}
 		prevData = logsafe.ScrubFile(prevData)
-		if err := client.SendLogPush(nickTag, prevData); err != nil {
+		if err := client.SendLogPush(logID, prevData); err != nil {
 			s.log.Warn("pushLogs: ошибка отправки ротированной сессии",
 				slog.Int("slot", i),
 				slog.String("error", err.Error()))
@@ -960,7 +967,7 @@ func (s *NetworkService) pushLogsToServer() {
 	}
 	data = logsafe.ScrubFile(data)
 
-	if err := client.SendLogPush(nickTag, data); err != nil {
+	if err := client.SendLogPush(logID, data); err != nil {
 		s.log.Warn("pushLogs: ошибка отправки", slog.String("error", err.Error()))
 	} else {
 		s.log.Info("📋 логи отправлены на сервер", slog.Int("bytes", len(data)))

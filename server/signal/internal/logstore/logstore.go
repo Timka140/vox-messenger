@@ -16,7 +16,52 @@ import (
 
 const (
 	chunkTimeout = 30 * time.Second // таймаут сборки чанков
+
+	// MaxPushBytes — предел одного лога после base64 decode. Больше — пуш
+	// отбрасывается целиком: защита памяти (сборка чанков) и диска.
+	MaxPushBytes = 16 << 20
+	// clientChunkB64 — размер чанка клиента в символах base64 (SendLogPush).
+	clientChunkB64 = 48000
+	maxChunkTotal  = MaxPushBytes*4/3/clientChunkB64 + 2
+	// maxChunkBuffers — одновременных недособранных логов.
+	maxChunkBuffers = 64
 )
+
+// Options — пределы хранения. Нулевое поле — значение по умолчанию.
+type Options struct {
+	MaxTotal      int64         // общий размер каталога, байт
+	MaxAge        time.Duration // файлы старше удаляются
+	KeepPerSource int           // файлов на источник
+}
+
+const (
+	defaultMaxTotal      = 1 << 30
+	defaultMaxAge        = 14 * 24 * time.Hour
+	defaultKeepPerSource = 10
+	pruneInterval        = 10 * time.Minute
+)
+
+func (o Options) withDefaults() Options {
+	if o.MaxTotal <= 0 {
+		o.MaxTotal = defaultMaxTotal
+	}
+	if o.MaxAge <= 0 {
+		o.MaxAge = defaultMaxAge
+	}
+	if o.KeepPerSource <= 0 {
+		o.KeepPerSource = defaultKeepPerSource
+	}
+	return o
+}
+
+// clientSourceRe — имя источника, которое шлёт клиент: анонимный id
+// установки, не ник (настройка «Отправлять анонимные логи»).
+var clientSourceRe = regexp.MustCompile(`^anon-[0-9a-f]{16}$`)
+
+// ValidClientSource — source из log_push допустим.
+func ValidClientSource(source string) bool {
+	return clientSourceRe.MatchString(source)
+}
 
 // SourceInfo — информация об источнике логов
 type SourceInfo struct {
@@ -29,6 +74,8 @@ type SourceInfo struct {
 // Store — хранилище debug-логов на диске
 type Store struct {
 	baseDir string
+	opts    Options
+	pruneMu sync.Mutex
 	mu      sync.Mutex
 	chunks  map[string]*chunkBuffer
 	log     *slog.Logger
@@ -37,18 +84,21 @@ type Store struct {
 type chunkBuffer struct {
 	parts     map[int][]byte
 	total     int
+	size      int
 	createdAt time.Time
 }
 
 // New создаёт новый Store
-func New(baseDir string, log *slog.Logger) *Store {
+func New(baseDir string, opts Options, log *slog.Logger) *Store {
 	os.MkdirAll(baseDir, 0755)
 	s := &Store{
 		baseDir: baseDir,
+		opts:    opts.withDefaults(),
 		chunks:  make(map[string]*chunkBuffer),
 		log:     log,
 	}
 	go s.cleanupLoop()
+	go s.pruneLoop()
 	return s
 }
 
@@ -58,6 +108,16 @@ func (s *Store) SaveChunk(source string, chunkIdx, chunkTotal int, data string) 
 	decoded, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
 		s.log.Warn("logstore: ошибка base64 decode", slog.String("source", source), slog.String("error", err.Error()))
+		return false
+	}
+
+	if chunkTotal < 1 || chunkTotal > maxChunkTotal || chunkIdx < 0 || chunkIdx >= chunkTotal {
+		s.log.Warn("logstore: неверный номер чанка", slog.Int("idx", chunkIdx), slog.Int("total", chunkTotal))
+		return false
+	}
+
+	if len(decoded) > MaxPushBytes {
+		s.log.Warn("logstore: лог больше предела, отброшен", slog.Int("limit", MaxPushBytes))
 		return false
 	}
 
@@ -71,6 +131,10 @@ func (s *Store) SaveChunk(source string, chunkIdx, chunkTotal int, data string) 
 
 	buf, ok := s.chunks[source]
 	if !ok || buf.total != chunkTotal {
+		if !ok && len(s.chunks) >= maxChunkBuffers {
+			s.log.Warn("logstore: слишком много недособранных логов, пуш отброшен")
+			return false
+		}
 		buf = &chunkBuffer{
 			parts:     make(map[int][]byte),
 			total:     chunkTotal,
@@ -79,7 +143,16 @@ func (s *Store) SaveChunk(source string, chunkIdx, chunkTotal int, data string) 
 		s.chunks[source] = buf
 	}
 
+	if old, dup := buf.parts[chunkIdx]; dup {
+		buf.size -= len(old)
+	}
 	buf.parts[chunkIdx] = decoded
+	buf.size += len(decoded)
+	if buf.size > MaxPushBytes {
+		s.log.Warn("logstore: лог больше предела, отброшен", slog.Int("limit", MaxPushBytes))
+		delete(s.chunks, source)
+		return false
+	}
 
 	if len(buf.parts) < chunkTotal {
 		return false
@@ -103,6 +176,9 @@ func (s *Store) SaveFromFile(source, path string) error {
 	}
 	if len(data) == 0 {
 		return nil
+	}
+	if len(data) > MaxPushBytes {
+		data = data[len(data)-MaxPushBytes:]
 	}
 	s.writeFile(source, data)
 	return nil
@@ -213,46 +289,10 @@ func (s *Store) writeFile(source string, data []byte) bool {
 		slog.String("file", filepath.Base(filePath)),
 		slog.Int("bytes", len(data)))
 
-	// Ротация: оставляем последние 20 файлов. Клиент пушит при каждом
-	// reconnect + на shutdown, поэтому в одной сессии может осесть несколько
-	// файлов с одинаковым содержимым. 20 даёт запас, чтобы ротированные
-	// .log.1..log.4 предыдущих сессий не вытеснялись повторными пушами
-	// текущей сессии (клиент локально хранит 4 прошлые сессии + текущую).
-	s.rotateFiles(dirPath, 20)
+	// Пределы хранения (срок, файлов на источник, общий размер) — prune.go.
+	s.Prune()
 
 	return true
-}
-
-// rotateFiles оставляет maxFiles самых новых файлов в директории, остальные удаляет
-func (s *Store) rotateFiles(dirPath string, maxFiles int) {
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		return
-	}
-
-	// Только файлы
-	var files []os.DirEntry
-	for _, e := range entries {
-		if !e.IsDir() {
-			files = append(files, e)
-		}
-	}
-
-	if len(files) <= maxFiles {
-		return
-	}
-
-	// Сортируем по имени (timestamp в имени → хронологически)
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Name() < files[j].Name()
-	})
-
-	// Удаляем самые старые
-	for _, f := range files[:len(files)-maxFiles] {
-		path := filepath.Join(dirPath, f.Name())
-		os.Remove(path)
-		s.log.Debug("logstore: ротация, удалён старый файл", slog.String("file", f.Name()))
-	}
 }
 
 // cleanupLoop чистит просроченные chunk-буферы

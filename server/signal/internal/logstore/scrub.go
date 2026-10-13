@@ -14,7 +14,7 @@ const redacted = "‹вырезано›"
 
 var blockedKeys = map[string]bool{
 	"content": true, "text": true, "body": true, "draft": true, "caption": true,
-	"nickname": true, "nick": true, "group_name": true,
+	"nickname": true, "nick": true, "nick_tag": true, "group_name": true,
 	"file_name": true, "filename": true, "file_path": true,
 	"title": true, "invite": true,
 }

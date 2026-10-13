@@ -74,7 +74,10 @@ var ErrPeerGone = errors.New("peer connection closed")
 type Peer struct {
 	PublicKey string
 	nickTag   atomic.Pointer[string]
-	Conn      *websocket.Conn
+	// diagID — анонимный id логов установки (из log_push); только в памяти,
+	// чтобы админка могла адресно запросить логи и показать «в сети».
+	diagID atomic.Pointer[string]
+	Conn   *websocket.Conn
 	// SessionID — id этого соединения; ConnectedAtMs — время auth. Нужны
 	// каталогу кластера: при одном ключе на двух узлах побеждает более новая
 	// сессия.
@@ -145,6 +148,20 @@ func (p *Peer) NickTag() string {
 // SetNickTag атомарно обновляет nick_tag.
 func (p *Peer) SetNickTag(nickTag string) {
 	p.nickTag.Store(&nickTag)
+}
+
+// DiagID — id логов, под которым пир последний раз присылал log_push.
+func (p *Peer) DiagID() string {
+	s := p.diagID.Load()
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// SetDiagID запоминает id логов пира.
+func (p *Peer) SetDiagID(id string) {
+	p.diagID.Store(&id)
 }
 
 // SetPresence — кому виден статус «в сети» пира: keys — публичные ключи

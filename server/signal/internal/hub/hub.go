@@ -567,6 +567,19 @@ func (h *Hub) VersionCounts() map[string]int {
 	return out
 }
 
+// DiagIDs — id логов подключённых пиров, которые уже присылали log_push.
+func (h *Hub) DiagIDs() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	var out []string
+	for _, p := range h.peers {
+		if id := p.DiagID(); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // UpdateNickTag обновляет nick_tag уже зарегистрированного пира.
 // Используется при смене ника без переподключения WS (чтобы не рвать P2P).
 // Возвращает старый ник и true, если пир найден.

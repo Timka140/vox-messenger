@@ -1233,6 +1233,18 @@
                                 <button id="logs-export-btn" type="button" class="settings-save-btn st-btn-sec st-btn-icon"><i data-lucide="download" class="icon-16"></i><span data-i18n="settings.diag.export">Export archive</span></button>
                             </div>
                         </div>
+                        <!-- Отправка логов на сигналку под анонимным id (network_diaglogs.go) -->
+                        <div class="settings-toggle-row">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="settings.diag.send">Send anonymous logs</span>
+                                <span class="settings-toggle-desc" data-i18n="settings.diag.send_desc">Helps find bugs. No message text, file names, nicknames or group names.</span>
+                            </div>
+                            <label class="toggle-switch"><input type="checkbox" id="diag-logs-toggle" checked><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="st-row">
+                            <div class="st-lbl" data-i18n="settings.diag.log_id">Log ID</div>
+                            <div class="st-inline"><span class="mono st-mono" id="diag-log-id">—</span><button id="diag-log-id-copy" class="profile-icon-btn" type="button" data-i18n-title="settings.network.copy_id" title="Copy"><i data-lucide="copy" class="icon-14"></i></button></div>
+                        </div>
                         <!-- Не сохраняется (до перезапуска) — st-manual -->
                         <div class="settings-toggle-row st-manual">
                             <div class="settings-toggle-info">

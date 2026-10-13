@@ -248,7 +248,7 @@ func newLogsAPI(t *testing.T) (http.Handler, string) {
 	must(os.WriteFile(filepath.Join(dir, "2026-09-25T10-00-00.jsonl"), []byte(`{"time":"2026-09-25T10:00:00Z","level":"INFO","msg":"old"}`+"\n"), 0644))
 	must(os.WriteFile(filepath.Join(base, "secret.txt"), []byte("SECRET"), 0644))
 	must(os.WriteFile(filepath.Join(dir, "..hidden"), []byte("SECRET"), 0644))
-	st := logstore.New(base, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	st := logstore.New(base, logstore.Options{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return newTestAPI(t, Options{Logs: st}), base
 }
 

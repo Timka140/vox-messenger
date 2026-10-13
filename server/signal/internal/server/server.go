@@ -662,9 +662,13 @@ func (s *Server) handleMessage(peer *hub.Peer, msg *protocol.Message) {
 			s.log.Warn("невалидный log_push", slog.String("from", nick))
 			return
 		}
-		if payload.Source == "" {
-			payload.Source = nick
+		// Клиент шлёт анонимный id установки; ник как имя источника не
+		// принимаем — логи не должны лежать под ником.
+		if !logstore.ValidClientSource(payload.Source) {
+			s.log.Warn("log_push: недопустимый source, отброшен", slog.String("from", nick))
+			return
 		}
+		peer.SetDiagID(payload.Source)
 		complete := s.logStore.SaveChunk(payload.Source, payload.ChunkIdx, payload.ChunkTotal, payload.Data)
 		if complete {
 			s.log.Info("📋 логи получены",
@@ -705,17 +709,22 @@ func (s *Server) collectLogs(targets []string) int {
 			return true
 		}
 		nt := p.NickTag()
-		return want[nt] || want[logstore.SourceName(nt)] || want[p.PublicKey]
+		id := p.DiagID()
+		return want[nt] || want[logstore.SourceName(nt)] || want[p.PublicKey] || (id != "" && want[id])
 	}, msg)
 }
 
-// onlineLogSources — имена источников логов (logstore.SourceName от nick#tag)
-// клиентов, подключённых к этому узлу.
+// onlineLogSources — имена источников логов клиентов, подключённых к этому
+// узлу: анонимные id из log_push этой сессии и (для старых каталогов)
+// logstore.SourceName от nick#tag.
 func (s *Server) onlineLogSources() map[string]bool {
 	peers := s.hub.PeerList()
 	out := make(map[string]bool, len(peers))
 	for _, p := range peers {
 		out[logstore.SourceName(p.NickTag)] = true
+	}
+	for _, id := range s.hub.DiagIDs() {
+		out[id] = true
 	}
 	return out
 }
