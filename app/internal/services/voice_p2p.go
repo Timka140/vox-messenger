@@ -36,6 +36,8 @@ func (s *VoiceService) HandleVoiceP2P(fromPubKey string, msg *P2PMessage) {
 		s.handleVoiceStatusLocked(fromPubKey, msg)
 	case "voice_members":
 		s.handleVoiceMembersLocked(fromPubKey, myID, msg)
+	case voiceKeyMsg, voiceKeyReqMsg:
+		s.handleVoiceKeyLocked(fromPubKey, msg)
 	}
 }
 
@@ -76,6 +78,8 @@ func (s *VoiceService) handleVoiceJoinLocked(fromPubKey, myID string, msg *P2PMe
 		if !alreadyKnown && msg.Content != "ack" {
 			s.sendVoiceJoinAckLocked(fromPubKey, myID, msg.GroupID)
 		}
+		// Ключ шифрования голоса через SFU (voice_e2e.go).
+		s.sendVoiceKeyLocked(fromPubKey, msg.GroupID)
 
 		// Отправляем свой mute/deafen статус новому участнику
 		if s.muted || s.deafened {
@@ -197,6 +201,12 @@ func (s *VoiceService) handleVoiceLeaveLocked(fromPubKey string, msg *P2PMessage
 		"peerId":   fromPubKey,
 		"nickname": leaveNick,
 	})
+
+	// Ушедший не должен читать дальнейшие кадры: новый ключ оставшимся.
+	if msg.GroupID == s.activeGroupID {
+		s.vkeys.dropPeer(fromPubKey)
+		s.rotateVoiceKeyLocked()
+	}
 
 	// SFU: удалить из hash map + проверить нужно ли переключиться обратно на mesh
 	s.removeSFUPeerHash(fromPubKey)
