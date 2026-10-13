@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
+	"messenger_signal/internal/auth"
 	"messenger_signal/pkg/protocol"
 )
 
@@ -83,19 +84,21 @@ func (c *client) handshake() {
 	if err != nil {
 		log.Fatalf("[%s] challenge hex: %v", c.name, err)
 	}
-	sig := ed25519.Sign(c.priv, chBytes)
+	srvPub, _ := hex.DecodeString(ch.ServerPubkey)
+	sig := ed25519.Sign(c.priv, auth.Message(auth.LabelClient, srvPub, chBytes, nil, c.pub))
 
 	clientChallenge := make([]byte, 32)
 	if _, err := rand.Read(clientChallenge); err != nil {
 		log.Fatalf("[%s] random client_challenge: %v", c.name, err)
 	}
-	auth := protocol.AuthPayload{
+	ap := protocol.AuthPayload{
 		PublicKey:       hex.EncodeToString(c.pub),
 		NickTag:         c.nickTag,
 		Signature:       hex.EncodeToString(sig),
 		ClientChallenge: hex.EncodeToString(clientChallenge),
+		AuthVersion:     auth.AuthVersion,
 	}
-	c.send(protocol.TypeAuth, auth)
+	c.send(protocol.TypeAuth, ap)
 
 	// Ждём auth_ok и ice_servers (оба приходят, проглатываем).
 	c.await(protocol.TypeAuthOK, 5*time.Second)

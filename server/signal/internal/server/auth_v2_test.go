@@ -148,28 +148,24 @@ func TestAuthV2TLSBindingAndNoOracle(t *testing.T) {
 	}
 }
 
-func TestAuthLegacyOnlyWithoutTLS(t *testing.T) {
+// Старый вход (без auth_version, подпись сырого challenge) отвергается на
+// любом порту; v2 без TLS (локальные тесты) — подпись с пустым отпечатком.
+func TestAuthLegacyRejected(t *testing.T) {
 	tlsTS, _, _ := v2Server(t, true)
 	if res := v2Login(t, tlsTS, 0, randBytes(32)); res.errMsg == "" {
 		t.Fatal("старый вход на TLS-порту должен отвергаться")
 	}
 	plain, id, _ := v2Server(t, false)
+	if res := v2Login(t, plain, 0, randBytes(32)); res.errMsg == "" {
+		t.Fatal("старый вход без TLS должен отвергаться")
+	}
 	cc := randBytes(32)
-	res := v2Login(t, plain, 0, cc)
-	if res.errMsg != "" {
-		t.Fatalf("старый клиент без TLS: %s", res.errMsg)
-	}
+	res := v2Login(t, plain, auth.AuthVersion, cc)
 	sig, _ := hex.DecodeString(res.ok.ServerSignature)
-	if !ed25519.Verify(id.Public, cc, sig) {
-		t.Fatal("старому клиенту — прежняя подпись")
+	if res.errMsg != "" || !ed25519.Verify(id.Public, auth.Message(auth.LabelServer, res.clientK, cc, nil, id.Public), sig) {
+		t.Fatalf("вход v2 без TLS: %s", res.errMsg)
 	}
-	if res.ok.SFUEndpoint != "ws://sfu:9760/ws" {
-		t.Fatalf("старому клиенту — ws SFU, получено %q", res.ok.SFUEndpoint)
-	}
-	// v2 без TLS (локальные тесты) — подпись с пустым отпечатком.
-	res2 := v2Login(t, plain, auth.AuthVersion, cc)
-	sig2, _ := hex.DecodeString(res2.ok.ServerSignature)
-	if res2.errMsg != "" || !ed25519.Verify(id.Public, auth.Message(auth.LabelServer, res2.clientK, cc, nil, id.Public), sig2) {
-		t.Fatalf("вход v2 без TLS: %s", res2.errMsg)
+	if res.ok.SFUEndpoint != "wss://sfu:9762/ws" {
+		t.Fatalf("SFU только по TLS, получено %q", res.ok.SFUEndpoint)
 	}
 }
