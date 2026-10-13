@@ -202,7 +202,7 @@ type VoiceService struct {
 	sfuForce     bool              // принудительный SFU (для тестирования, игнорирует threshold)
 	sfuThreshold int               // порог участников для переключения (default 4)
 	sfuEndpoint  string            // от signal server auth_ok
-	sfuSecret    string            // HMAC shared secret от signal server
+	sfuToken     sfuTokenFunc      // токен входа в комнату SFU у узла, на котором этот SFU
 	sfuCertHash  []byte            // SHA-256 сертификата узла из входа: SFU на том же узле с тем же сертификатом
 	vkeys        *voiceE2E         // ключи шифрования голоса через SFU (voice_e2e.go)
 	sfuConn      *sfuConn          // nil когда не подключен к SFU

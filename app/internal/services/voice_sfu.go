@@ -1,11 +1,9 @@
 package services
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -93,9 +91,9 @@ func (s *VoiceService) connectSFU(groupID string) {
 		return
 	}
 	endpoint := s.sfuEndpoint
-	secret := s.sfuSecret
+	tokenFn := s.sfuToken
 	certHash := s.sfuCertHash
-	if endpoint == "" || !s.sfuEnabled {
+	if endpoint == "" || tokenFn == nil || !s.sfuEnabled {
 		s.mu.Unlock()
 		return
 	}
@@ -108,10 +106,21 @@ func (s *VoiceService) connectSFU(groupID string) {
 	s.sfuActive = true
 	s.mu.Unlock()
 
-	// Generate HMAC token
-	ts := time.Now().Unix()
-	token := generateSFUToken(secret, myID, groupID, ts)
-	url := fmt.Sprintf("%s?room=%s&peer=%s&token=%s&ts=%d", endpoint, groupID, myID, token, ts)
+	// Токен выдаёт узел: секрет SFU у клиента не хранится, peer в токене —
+	// ключ нашего соединения с узлом.
+	tok, err := tokenFn(groupID, sfuTokenTimeout)
+	if err == nil && tok.Peer != myID {
+		err = fmt.Errorf("токен выдан на другой ключ")
+	}
+	if err != nil {
+		s.log.Warn("SFU: нет токена", slog.String("group", safeShort8(groupID)), slog.String("error", err.Error()))
+		s.mu.Lock()
+		s.sfuActive = false
+		s.mu.Unlock()
+		return
+	}
+	url := fmt.Sprintf("%s?room=%s&peer=%s&token=%s&ts=%d", endpoint,
+		neturl.QueryEscape(groupID), neturl.QueryEscape(myID), neturl.QueryEscape(tok.Token), tok.TS)
 
 	s.log.Info("SFU connecting", slog.String("group", safeShort8(groupID)), slog.String("endpoint", endpoint))
 
@@ -320,15 +329,11 @@ func (s *VoiceService) onSFUDisconnect(conn *sfuConn) {
 	conn.close()
 }
 
-// generateSFUToken создаёт HMAC-SHA256 токен для авторизации на SFU.
-func generateSFUToken(secret, peerID, roomID string, ts int64) string {
-	if secret == "" {
-		return ""
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	fmt.Fprintf(mac, "%s:%s:%d", peerID, roomID, ts)
-	return hex.EncodeToString(mac.Sum(nil))
-}
+// sfuTokenFunc — запрос токена входа в комнату SFU у сигнального узла
+// (network.SignalClient.RequestSFUToken).
+type sfuTokenFunc func(room string, timeout time.Duration) (network.SFUTokenPayload, error)
+
+const sfuTokenTimeout = 5 * time.Second
 
 // updateSFUPeerHash добавляет нового участника в hash maps (вызывается под s.mu).
 func (s *VoiceService) updateSFUPeerHash(peerID string) {
@@ -477,13 +482,11 @@ func (s *VoiceService) LoadSFUSettings() {
 }
 
 // SetSFUConfig вызывается при получении SFU endpoint от signal server.
-func (s *VoiceService) SetSFUConfig(endpoint, secret string, certHash []byte) {
+func (s *VoiceService) SetSFUConfig(endpoint string, certHash []byte, token sfuTokenFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sfuEndpoint = endpoint
-	s.sfuSecret = secret
 	s.sfuCertHash = certHash
-	s.log.Info("SFU config received",
-		slog.String("endpoint", endpoint),
-		slog.Bool("has_secret", secret != ""))
+	s.sfuToken = token
+	s.log.Info("SFU config received", slog.String("endpoint", endpoint))
 }

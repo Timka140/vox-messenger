@@ -40,6 +40,10 @@ const (
 	TypeCallReject = "call_reject" // отклонение звонка
 	TypeCallEnd    = "call_end"    // выход/завершение звонка
 
+	// SFU: токен входа в голосовую комнату выдаёт узел, секрет SFU клиенту не отдаётся
+	TypeSFUTokenReq = "sfu_token_req" // клиент → сервер: дай токен для комнаты
+	TypeSFUToken    = "sfu_token"     // сервер → клиент: токен или отказ
+
 	// Ошибки
 	TypeError = "error" // сервер → клиент: ошибка
 
@@ -198,7 +202,6 @@ type AuthOKPayload struct {
 	ServerSignature string             `json:"server_signature"` // hex-encoded Ed25519 signature of client_challenge
 	LatestRelease   *LatestReleaseInfo `json:"latest_release,omitempty"`
 	SFUEndpoint     string             `json:"sfu_endpoint,omitempty"`
-	SFUSecret       string             `json:"sfu_secret,omitempty"`
 	// Presence — сервер понимает watch-списки (presence в auth, presence_watch).
 	Presence bool `json:"presence,omitempty"`
 }
@@ -450,4 +453,20 @@ type NodeFwdErrPayload struct {
 	From string `json:"from"`
 	To   string `json:"to"`
 	Code string `json:"code"`
+}
+
+// SFUTokenReqPayload — запрос токена для голосовой комнаты SFU (room = id группы).
+type SFUTokenReqPayload struct {
+	Room string `json:"room"`
+}
+
+// SFUTokenPayload — ответ на sfu_token_req. Token = HMAC-SHA256(SFU_SECRET,
+// "peer:room:ts"), peer — ключ соединения, от которого пришёл запрос.
+// Error не пуст — отказ (нет SFU, не участник группы, неверная комната).
+type SFUTokenPayload struct {
+	Room  string `json:"room"`
+	Peer  string `json:"peer,omitempty"`
+	TS    int64  `json:"ts,omitempty"`
+	Token string `json:"token,omitempty"`
+	Error string `json:"error,omitempty"`
 }

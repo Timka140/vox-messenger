@@ -631,9 +631,9 @@ func (s *NetworkService) Connect(listenAddr, dialAddr, seedAddr string) error {
 	})
 	hint := &releaseHint{}
 	client.SetOnLatestRelease(hint.set)
-	client.SetOnSFUConfig(func(endpoint, secret string) {
+	client.SetOnSFUConfig(func(endpoint string) {
 		if s.voice != nil {
-			s.voice.SetSFUConfig(endpoint, secret, client.TLSCertHash())
+			s.voice.SetSFUConfig(endpoint, client.TLSCertHash(), client.RequestSFUToken)
 		}
 	})
 	client.SetPresenceProvider(s.presenceForAuth) // статус «в сети» — presence.go
@@ -803,9 +803,9 @@ func (s *NetworkService) ReconnectSignal() error {
 	})
 	hint := &releaseHint{}
 	newClient.SetOnLatestRelease(hint.set)
-	newClient.SetOnSFUConfig(func(endpoint, secret string) {
+	newClient.SetOnSFUConfig(func(endpoint string) {
 		if s.voice != nil {
-			s.voice.SetSFUConfig(endpoint, secret, newClient.TLSCertHash())
+			s.voice.SetSFUConfig(endpoint, newClient.TLSCertHash(), newClient.RequestSFUToken)
 		}
 	})
 	newClient.SetPresenceProvider(s.presenceForAuth)
