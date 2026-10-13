@@ -24,6 +24,7 @@ func main() {
 		slog.String("signal_debug", cfg.SignalDebugAddr))
 
 	srv := server.New(server.Config{
+		HTTPHost:        cfg.HTTPHost,
 		HTTPPort:        cfg.HTTPPort,
 		SignalDebugAddr: cfg.SignalDebugAddr,
 		LogDir:          cfg.LogDir,

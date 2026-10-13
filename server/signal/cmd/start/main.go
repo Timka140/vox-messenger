@@ -17,6 +17,7 @@ import (
 	"messenger_signal/internal/logstore"
 	"messenger_signal/internal/releases"
 	"messenger_signal/internal/server"
+	"messenger_signal/internal/tlscert"
 	"os"
 	"os/signal"
 	"strings"
@@ -66,6 +67,14 @@ func main() {
 
 	// WebSocket сервер
 	srv := server.New(h, cfg.WS, cfg.TURN, cfg.SFU, logger, id)
+	if cfg.WS.TLSPort > 0 {
+		cert, hash, err := tlscert.LoadOrCreate(cfg.WS.TLSCert, cfg.WS.TLSKey, cfg.WS.TLSHost)
+		if err != nil {
+			logger.Error("TLS-сертификат узла", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		srv.SetTLS(cert, hash)
+	}
 
 	// Кластер узлов (docs/cluster-contract.md). CLUSTER_PEERS пуст —
 	// одиночный сервер, как раньше.

@@ -37,6 +37,7 @@ load_node() {
     NODE_IP=""
     NODE_HOST=""
     NODE_WS_PORT=9741
+    NODE_WS_TLS_PORT=9743
     NODE_SOFT_LIMIT=400
     NODE_PUBKEY=""
     NODE_PINNED=0

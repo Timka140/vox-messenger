@@ -50,13 +50,14 @@ if [ -z "$NODE_PUBKEY" ]; then
 fi
 
 # cluster.env — узлы кластера из build/nodes/*.conf (адреса и pubkey не
-# секрет). Себя сервер из CLUSTER_PEERS пропускает сам. Узел без
+# секрет). Линки и адреса для клиентов — TLS-порт (wss, сертификат узла
+# подтверждается его ключом при входе). Себя сервер из CLUSTER_PEERS пропускает сам. Узел без
 # NODE_PUBKEY в список не попадает.
 CLUSTER_ENV="$SECRETS_DIR/cluster.env"
 PEERS=""
 for conf in "$SCRIPT_DIR"/nodes/*.conf; do
     n="$(basename "$conf" .conf)"
-    entry="$(load_node "$n" && [ -n "$NODE_PUBKEY" ] && echo "ws://$NODE_HOST:$NODE_WS_PORT/ws=$NODE_PUBKEY")" || entry=""
+    entry="$(load_node "$n" && [ -n "$NODE_PUBKEY" ] && echo "wss://$NODE_HOST:$NODE_WS_TLS_PORT/ws=$NODE_PUBKEY")" || entry=""
     if [ -z "$entry" ]; then
         echo "Warning: узел $n без NODE_PUBKEY — в cluster.env не попал"
         continue
@@ -65,7 +66,7 @@ for conf in "$SCRIPT_DIR"/nodes/*.conf; do
 done
 {
     echo "# Сгенерировано build/deploy-signal.sh — узлы кластера"
-    echo "CLUSTER_SELF_ADDR='ws://$NODE_HOST:$NODE_WS_PORT/ws'"
+    echo "CLUSTER_SELF_ADDR='wss://$NODE_HOST:$NODE_WS_TLS_PORT/ws'"
     echo "CLUSTER_PEERS='$PEERS'"
     # SOFT_LIMIT=<n> ./build/deploy-signal.sh — временный лимит для проверки redirect.
     echo "CLUSTER_SOFT_LIMIT=${SOFT_LIMIT:-$NODE_SOFT_LIMIT}"

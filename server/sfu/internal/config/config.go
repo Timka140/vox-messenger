@@ -13,6 +13,11 @@ type Config struct {
 	Host   string `yaml:"host" env:"SFU_HOST" env-default:"0.0.0.0"`
 	Port   int    `yaml:"port" env:"SFU_PORT" env-default:"9760"`
 	Secret string `yaml:"secret" env:"SFU_SECRET" env-default:""`
+	// TLS: второй listener с сертификатом сигналки этого узла (она его
+	// создаёт; клиент сверяет отпечаток с подтверждённым при входе). 0 — выключен.
+	TLSPort int    `yaml:"tls_port" env:"SFU_TLS_PORT" env-default:"0"`
+	TLSCert string `yaml:"tls_cert" env:"TLS_CERT" env-default:"tls.crt"`
+	TLSKey  string `yaml:"tls_key" env:"TLS_KEY" env-default:"tls.key"`
 }
 
 func (c Config) Addr() string {

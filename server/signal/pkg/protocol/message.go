@@ -114,6 +114,9 @@ type AuthPayload struct {
 	// статистики версий в admin API. Необязательное: не проходит
 	// ValidAppVersion — игнорируется, старые клиенты его не шлют.
 	AppVersion string `json:"app_version,omitempty"`
+	// AuthVersion — 2: подписи с меткой и отпечатком TLS (internal/auth/v2.go).
+	// 0 — старый клиент: вход только на порту без TLS.
+	AuthVersion int `json:"auth_version,omitempty"`
 }
 
 var appVersionRe = regexp.MustCompile(`^v\d+\.\d{2}\.\d{3}\.\d{4}$`)

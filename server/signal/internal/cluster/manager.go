@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"messenger_signal/internal/auth"
 	"messenger_signal/internal/hub"
 	"messenger_signal/internal/identity"
+	"messenger_signal/internal/tlscert"
 	"messenger_signal/pkg/protocol"
 )
 
@@ -324,9 +326,18 @@ func (m *Manager) dial(p PeerNode) (*Link, error) {
 		}
 	}()
 
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, p.Addr, nil)
+	// wss — сертификат самоподписанный: CA не проверяем, а сверяем его
+	// отпечаток через подписи node_auth v2 (обе стороны подписывают tlsHash).
+	dialer := *websocket.DefaultDialer
+	dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
+	conn, _, err := dialer.DialContext(ctx, p.Addr, nil)
 	if err != nil {
 		return nil, err
+	}
+	var tlsHash []byte
+	if tc, ok := conn.UnderlyingConn().(*tls.Conn); ok {
+		st := tc.ConnectionState()
+		tlsHash = tlscert.PeerHash(&st)
 	}
 	ok := false
 	defer func() {
@@ -356,13 +367,18 @@ func (m *Manager) dial(p PeerNode) (*Link, error) {
 	if err != nil || len(chBytes) == 0 {
 		return nil, fmt.Errorf("invalid challenge")
 	}
+	peerPub, err := hex.DecodeString(p.NodeID)
+	if err != nil || len(peerPub) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid node_id %s", short(p.NodeID))
+	}
 	myChallenge := make([]byte, 32)
 	if _, err := rand.Read(myChallenge); err != nil {
 		return nil, err
 	}
 	authData, _ := encodeMsg(protocol.TypeNodeAuth, protocol.NodeAuthPayload{
 		NodeID:          m.selfID,
-		Signature:       hex.EncodeToString(ed25519.Sign(m.id.Private, chBytes)),
+		Signature: hex.EncodeToString(ed25519.Sign(m.id.Private,
+			auth.Message(auth.LabelNode, peerPub, chBytes, tlsHash, m.id.Public))),
 		ClientChallenge: hex.EncodeToString(myChallenge),
 	})
 	if err := conn.WriteMessage(websocket.TextMessage, authData); err != nil {
@@ -385,9 +401,9 @@ func (m *Manager) dial(p PeerNode) (*Link, error) {
 	if err := json.Unmarshal(okMsg.Payload, &okp); err != nil {
 		return nil, err
 	}
-	pub, _ := hex.DecodeString(p.NodeID)
 	sig, err := hex.DecodeString(okp.ServerSignature)
-	if err != nil || !ed25519.Verify(ed25519.PublicKey(pub), myChallenge, sig) {
+	okSigned := auth.Message(auth.LabelNodeOK, m.id.Public, myChallenge, tlsHash, peerPub)
+	if err != nil || !ed25519.Verify(ed25519.PublicKey(peerPub), okSigned, sig) {
 		return nil, fmt.Errorf("подпись узла не сходится")
 	}
 
@@ -401,7 +417,8 @@ func (m *Manager) dial(p PeerNode) (*Link, error) {
 // node_auth. Проверяет allowlist, направление и подпись, отвечает
 // node_auth_ok и держит линк до закрытия (блокирует вызывающую горутину).
 // Ошибка — линк отвергнут, соединение закрывает вызывающий.
-func (m *Manager) Accept(conn *websocket.Conn, challenge string, p protocol.NodeAuthPayload) error {
+// tlsHash — SHA-256 нашего сертификата, если линк пришёл по TLS (иначе nil).
+func (m *Manager) Accept(conn *websocket.Conn, challenge string, p protocol.NodeAuthPayload, tlsHash []byte) error {
 	if m.stopped() {
 		return errStopped
 	}
@@ -413,15 +430,20 @@ func (m *Manager) Accept(conn *websocket.Conn, challenge string, p protocol.Node
 	if nodeID >= m.selfID {
 		return fmt.Errorf("линк инициирует узел с меньшим node_id, а %s больше", short(nodeID))
 	}
-	if err := auth.VerifySignature(nodeID, challenge, p.Signature); err != nil {
-		return fmt.Errorf("подпись узла %s: %w", short(nodeID), err)
+	initPub, _ := hex.DecodeString(nodeID)
+	chBytes, _ := hex.DecodeString(challenge)
+	sig, err := hex.DecodeString(p.Signature)
+	signed := auth.Message(auth.LabelNode, m.id.Public, chBytes, tlsHash, initPub)
+	if err != nil || len(initPub) != ed25519.PublicKeySize || !ed25519.Verify(ed25519.PublicKey(initPub), signed, sig) {
+		return fmt.Errorf("подпись узла %s не сходится", short(nodeID))
 	}
 	cc, err := hex.DecodeString(p.ClientChallenge)
 	if err != nil || len(cc) == 0 {
 		return fmt.Errorf("invalid client_challenge")
 	}
 	okData, _ := encodeMsg(protocol.TypeNodeAuthOK, protocol.NodeAuthOKPayload{
-		ServerSignature: hex.EncodeToString(ed25519.Sign(m.id.Private, cc)),
+		ServerSignature: hex.EncodeToString(ed25519.Sign(m.id.Private,
+			auth.Message(auth.LabelNodeOK, initPub, cc, tlsHash, m.id.Public))),
 	})
 	_ = conn.SetWriteDeadline(time.Now().Add(HandshakeTimeout))
 	if err := conn.WriteMessage(websocket.TextMessage, okData); err != nil {

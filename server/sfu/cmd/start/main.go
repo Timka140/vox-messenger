@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -36,6 +37,23 @@ func main() {
 		rooms, members := mgr.Stats()
 		fmt.Fprintf(w, `{"status":"ok","rooms":%d,"members":%d}`, rooms, members)
 	})
+
+	if cfg.TLSPort > 0 {
+		cert, err := tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
+		if err != nil {
+			log.Error("SFU TLS выключен: нет сертификата узла", slog.String("error", err.Error()))
+		} else {
+			tlsAddr := fmt.Sprintf("%s:%d", cfg.Host, cfg.TLSPort)
+			srv := &http.Server{Addr: tlsAddr, Handler: mux,
+				TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}}
+			go func() {
+				log.Info("SFU TLS listening", slog.String("addr", tlsAddr))
+				if err := srv.ListenAndServeTLS("", ""); err != nil {
+					log.Error("SFU TLS error", slog.String("error", err.Error()))
+				}
+			}()
+		}
+	}
 
 	log.Info("SFU listening", slog.String("addr", cfg.Addr()))
 	if err := http.ListenAndServe(cfg.Addr(), mux); err != nil {
