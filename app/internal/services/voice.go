@@ -204,6 +204,7 @@ type VoiceService struct {
 	sfuEndpoint  string            // от signal server auth_ok
 	sfuSecret    string            // HMAC shared secret от signal server
 	sfuCertHash  []byte            // SHA-256 сертификата узла из входа: SFU на том же узле с тем же сертификатом
+	vkeys        *voiceE2E         // ключи шифрования голоса через SFU (voice_e2e.go)
 	sfuConn      *sfuConn          // nil когда не подключен к SFU
 	sfuActive    bool              // true = отправка идёт через SFU (не mesh)
 	sfuPeerHash  map[string]uint32 // peerID → hash (для отправки)
@@ -259,6 +260,7 @@ func NewVoiceService(log *slog.Logger, store *storage.Storage, sess *session.Ses
 		network:      network,
 		groups:       groups,
 		participants:  make(map[string]bool),
+		vkeys:        newVoiceE2E(),
 		channelPeers: make(map[string]map[string]bool),
 		peerVolumes:  make(map[string]float32),
 		masterVoiceVolume: 1.0,
@@ -402,6 +404,7 @@ func (s *VoiceService) PresetActiveGroup(groupID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.activeGroupID = groupID
+	s.vkeys.ensure()
 }
 
 // JoinGroupVoice подключается к голосовому каналу группы
@@ -551,6 +554,7 @@ func (s *VoiceService) JoinGroupVoice(groupID string) error {
 	}
 
 	s.activeGroupID = groupID
+	s.vkeys.ensure()
 	s.muted = false
 	s.stopCh = make(chan struct{})
 
@@ -906,6 +910,7 @@ func (s *VoiceService) leaveCommon(waitLoop bool) {
 	s.mixBufTs = make(map[string][]int64)
 
 	s.activeGroupID = ""
+	s.vkeys.reset()
 	s.participants = make(map[string]bool)
 	s.peerSpeaking = make(map[string]bool)
 	s.speakDecay = make(map[string]int)

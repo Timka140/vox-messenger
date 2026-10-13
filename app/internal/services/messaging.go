@@ -954,7 +954,7 @@ func (s *MessagingService) dispatchP2P(fromPubKey string, data []byte, viaMesh b
 		s.handleVoiceChunk(fromPubKey, &msg)
 	case "voice_complete":
 		s.handleVoiceComplete(fromPubKey, &msg)
-	case "voice_join", "voice_leave", "voice_status", "voice_members":
+	case "voice_join", "voice_leave", "voice_status", "voice_members", "voice_key", "voice_key_req":
 		s.log.Debug("📨 P2P voice signal",
 			slog.String("type", msg.Type),
 			slog.String("from", safeShort(fromPubKey)),

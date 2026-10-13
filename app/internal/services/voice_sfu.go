@@ -37,6 +37,7 @@ type sfuConn struct {
 	roomID  string
 	myHash  uint32
 	log     *slog.Logger
+	vkeys   *voiceE2E // шифрование кадров (voice_e2e.go); без ключа кадр не уходит
 
 	// wMu сериализует ws.Write* вызовы. Требуется т.к. WriteControl (из close)
 	// и WriteMessage (из writePump) идут из разных goroutines — без этого
@@ -48,8 +49,14 @@ type sfuConn struct {
 }
 
 // send отправляет фрейм в SFU. Non-blocking: если writeCh полон — фрейм дропается.
+// Кадр шифруется ключом отправителя; ключа нет — кадр не уходит.
 func (c *sfuConn) send(payload []byte) {
-	wrapped := wrapVOXS(payload, c.myHash)
+	hdr := wrapVOXS(nil, c.myHash)
+	body := c.vkeys.seal(hdr, c.myHash, payload)
+	if body == nil {
+		return
+	}
+	wrapped := append(hdr, body...)
 	select {
 	case c.writeCh <- wrapped:
 	default:
@@ -137,6 +144,7 @@ func (s *VoiceService) connectSFU(groupID string) {
 		roomID:  groupID,
 		myHash:  peerIDHash(myID),
 		log:     s.log,
+		vkeys:   s.vkeys,
 	}
 
 	s.mu.Lock()
@@ -280,8 +288,15 @@ func (s *VoiceService) sfuReadPump(conn *sfuConn) {
 			continue
 		}
 
-		// Feed into existing receive path
-		s.handleVoiceFrame(peerID, payload)
+		// Кадр зашифрован ключом отправителя (voice_e2e.go).
+		frame, needKey := s.vkeys.open(peerID, msg[:voiceHdrLen], senderHash, payload)
+		if frame == nil {
+			if needKey {
+				go s.requestVoiceKey(peerID)
+			}
+			continue
+		}
+		s.handleVoiceFrame(peerID, frame)
 	}
 }
 
