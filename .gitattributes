@@ -1,1 +1,8 @@
 *.sh text eol=lf
+
+# Статистика языков на GitHub (linguist): сторонний код не считать.
+third_party/** linguist-vendored
+app/internal/audio/miniaudio.h linguist-vendored
+app/internal/codec/h264enc/include/** linguist-vendored
+app/frontend/src/lucide.min.js linguist-vendored
+app/internal/meshtastic/meshpb/*.pb.go linguist-generated
