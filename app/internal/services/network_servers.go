@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/tls"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -406,8 +407,24 @@ func shortHash(s string) string {
 	return hex.EncodeToString(h[:4])
 }
 
+// ActiveSignalTLS — TLS-конфиг для HTTP к текущему узлу: принимает только
+// сертификат, подтверждённый его ключом при входе. nil — узел без TLS (ws://).
+func (s *NetworkService) ActiveSignalTLS() *tls.Config {
+	s.mu.RLock()
+	c := s.client
+	s.mu.RUnlock()
+	if c == nil {
+		return nil
+	}
+	h := c.TLSCertHash()
+	if len(h) == 0 {
+		return nil
+	}
+	return network.PinnedTLS(h)
+}
+
 // ActiveSignalHTTPBase возвращает HTTP base URL текущего активного signal server
-// (например "http://n1.northwindcdn.com:9741"). Пустая строка если нет подключения.
+// (например "https://n1.northwindcdn.com:9743"). Пустая строка если нет подключения.
 // Используется UpdateService для HTTP endpoints /api/update/*.
 func (s *NetworkService) ActiveSignalHTTPBase() string {
 	s.mu.RLock()
@@ -416,7 +433,7 @@ func (s *NetworkService) ActiveSignalHTTPBase() string {
 	if c == nil {
 		return ""
 	}
-	addr := c.Addr() // "host:port" или "host:port/ws" (без схемы)
+	addr := c.Addr() // "host:port" (TLS) или "ws://host:port" (тестовый узел)
 	if addr == "" {
 		return ""
 	}
@@ -428,7 +445,7 @@ func (s *NetworkService) ActiveSignalHTTPBase() string {
 	case strings.HasPrefix(addr, "https://"), strings.HasPrefix(addr, "http://"):
 		// уже со схемой
 	default:
-		addr = "http://" + addr
+		addr = "https://" + addr // адрес без схемы — TLS-порт узла
 	}
 	// Убираем path (/ws)
 	schemeEnd := strings.Index(addr, "//") + 2

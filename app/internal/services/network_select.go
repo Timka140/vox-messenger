@@ -3,6 +3,7 @@ package services
 // Выбор узла кластера при подключении к сигналке (docs/cluster-contract.md §6).
 
 import (
+	"crypto/tls"
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
@@ -44,20 +45,28 @@ type probeResult struct {
 // probeFunc — опрос одного узла; в тестах подменяется.
 type probeFunc func(ctx context.Context, addr string) probeResult
 
-// probeHealthz — GET http://<host:port>/healthz.
+// probeHealthz — GET https://<host:port>/healthz (http:// для тестового ws://).
+// Только для порядка перебора узлов: сертификат здесь не закреплён, подлинность
+// узла проверяет вход v2 при подключении.
 func probeHealthz(ctx context.Context, addr string) probeResult {
+	scheme := "https://"
 	base := addr
+	if strings.HasPrefix(base, "ws://") {
+		scheme, base = "http://", strings.TrimPrefix(base, "ws://")
+	}
+	base = strings.TrimPrefix(base, "wss://")
 	if i := strings.Index(base, "/"); i >= 0 {
 		base = base[:i]
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+base+"/healthz", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, scheme+base+"/healthz", nil)
 	if err != nil {
 		return probeResult{}
 	}
-	client := &http.Client{Timeout: healthzTimeout}
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}}
 	if d := network.LocalDialer(healthzTimeout); d != nil {
-		client.Transport = &http.Transport{DialContext: d.DialContext}
+		tr.DialContext = d.DialContext
 	}
+	client := &http.Client{Timeout: healthzTimeout, Transport: tr}
 	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {

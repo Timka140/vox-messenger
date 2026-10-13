@@ -99,6 +99,8 @@ type AuthPayload struct {
 	// AppVersion — версия клиента для статистики админки (сколько онлайн на
 	// какой версии). Старый сервер поле игнорирует.
 	AppVersion string `json:"app_version,omitempty"`
+	// AuthVersion — 2: подписи входа с меткой и отпечатком TLS (authv2.go).
+	AuthVersion int `json:"auth_version,omitempty"`
 }
 
 // AppVersion — версия этой сборки (main.AppVersion), уходит в auth.
@@ -335,6 +337,7 @@ type SignalClient struct {
 	// Pubkey сервера, фактически предъявленный в challenge и проверенный mutual-auth-ом.
 	// Используется caller'ом для TOFU writeback в БД (когда expectedPubkey был пустой).
 	observedServerPubkey string
+	tlsCertHash          []byte // SHA-256 сертификата узла, подтверждённый при входе
 
 	// Активный heartbeat: read deadline сбрасывается при любом сообщении/pong от сервера.
 	// Если сервер не шлёт ничего за pongWait — ReadMessage возвращает ошибку → reconnect.
@@ -432,15 +435,12 @@ var ErrServerPubkeyMismatch = fmt.Errorf("server identity mismatch")
 func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string, privKey ed25519.PrivateKey, pubKey ed25519.PublicKey, nickTag string) error {
 	const op = "SignalClient.Connect"
 
-	// Если адрес без path — добавляем /ws
-	wsURL := "ws://" + addr
-	if !strings.Contains(addr, "/") {
-		wsURL = "ws://" + addr + "/ws"
-	}
+	wsURL := signalURL(addr)
 	c.log.Info("подключение к сигнальному серверу", slog.String("addr", addr))
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:  insecureTLS(),
 	}
 	// Dev-bind: --bind-iface заставляет TCP-сокет к сигналке выйти через
 	// конкретный NIC (на Windows — IP_UNICAST_IF из LocalAddr). Иначе пакеты
@@ -452,6 +452,8 @@ func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string,
 	if err != nil {
 		return fmt.Errorf("%s: dial: %w", op, err)
 	}
+	// Отпечаток сертификата входит в подписи v2 с обеих сторон.
+	tlsHash := connTLSHash(conn)
 
 	// Аутентификация: ждём challenge
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -495,7 +497,8 @@ func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string,
 		conn.Close()
 		return fmt.Errorf("%s: decode challenge: %w", op, err)
 	}
-	signature := ed25519.Sign(privKey, challengeBytes)
+	signature := ed25519.Sign(privKey,
+		authMessage(authLabelClient, serverPubBytes, challengeBytes, tlsHash, pubKey))
 
 	// Свой client_challenge для mutual auth (32 байта, сервер подпишет в auth_ok)
 	clientChallenge := make([]byte, 32)
@@ -526,6 +529,7 @@ func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string,
 		Presence:        presence,
 		RedirectOK:      true,
 		AppVersion:      authAppVersion(),
+		AuthVersion:     authVersion,
 	})
 	if err != nil {
 		conn.Close()
@@ -566,7 +570,8 @@ func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string,
 			return fmt.Errorf("%s: parse redirect: %w", op, err)
 		}
 		sig, err := hex.DecodeString(rp.ServerSignature)
-		if err != nil || len(sig) != ed25519.SignatureSize || !ed25519.Verify(serverPubBytes, clientChallenge, sig) {
+		signed := authMessage(authLabelRedirect, clientChallenge, []byte(rp.Addr), []byte(strings.ToLower(rp.Pubkey)), tlsHash)
+		if err != nil || len(sig) != ed25519.SignatureSize || !ed25519.Verify(serverPubBytes, signed, sig) {
 			return fmt.Errorf("%s: redirect: server_signature verification failed", op)
 		}
 		target, err := hex.DecodeString(rp.Pubkey)
@@ -603,12 +608,13 @@ func (c *SignalClient) Connect(ctx context.Context, addr, expectedPubkey string,
 		conn.Close()
 		return fmt.Errorf("%s: invalid server_signature", op)
 	}
-	if !ed25519.Verify(serverPubBytes, clientChallenge, serverSig) {
+	if !ed25519.Verify(serverPubBytes, authMessage(authLabelServer, pubKey, clientChallenge, tlsHash, serverPubBytes), serverSig) {
 		conn.Close()
 		return fmt.Errorf("%s: server_signature verification failed", op)
 	}
 	c.observedServerPubkey = challenge.ServerPubkey
 	c.mu.Lock()
+	c.tlsCertHash = tlsHash
 	c.serverPresence = okPayload.Presence
 	c.mu.Unlock()
 
@@ -994,6 +1000,14 @@ func (c *SignalClient) IsConnected() bool {
 	defer c.mu.Unlock()
 	// conn больше не зануляется в Close — признак живости именно !closed.
 	return c.conn != nil && !c.closed
+}
+
+// TLSCertHash — SHA-256 сертификата текущего узла, подтверждённый его ключом
+// при входе; nil — соединение без TLS (тестовый ws://).
+func (c *SignalClient) TLSCertHash() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]byte(nil), c.tlsCertHash...)
 }
 
 // Addr возвращает адрес текущего сервера

@@ -20,7 +20,7 @@ import (
 
 // redirectServer — фейковый узел: challenge, затем redirect вместо auth_ok.
 // signWith — чьим ключом подписать client_challenge (подделка — чужим).
-func redirectServer(t *testing.T, srvPriv, signWith ed25519.PrivateKey, target RedirectPayload) *httptest.Server {
+func redirectServer(t *testing.T, srvPriv, signWith ed25519.PrivateKey, target RedirectPayload, tamper bool) *httptest.Server {
 	t.Helper()
 	up := websocket.Upgrader{}
 	mux := http.NewServeMux()
@@ -49,7 +49,11 @@ func redirectServer(t *testing.T, srvPriv, signWith ed25519.PrivateKey, target R
 		}
 		cc, _ := hex.DecodeString(ap.ClientChallenge)
 		rp := target
-		rp.ServerSignature = hex.EncodeToString(ed25519.Sign(signWith, cc))
+		rp.ServerSignature = hex.EncodeToString(ed25519.Sign(signWith,
+			authMessage(authLabelRedirect, cc, []byte(target.Addr), []byte(strings.ToLower(target.Pubkey)), nil)))
+		if tamper {
+			rp.Addr = "evil.example:9743" // подпись покрывает addr — подмена не пройдёт
+		}
 		raw, _ := json.Marshal(rp)
 		_ = conn.WriteJSON(Message{Type: TypeRedirect, Payload: raw})
 		time.Sleep(100 * time.Millisecond)
@@ -66,12 +70,12 @@ func TestConnectRedirect(t *testing.T) {
 	target := RedirectPayload{Addr: "10.1.2.3:9741", Pubkey: strings.Repeat("A", 64)}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	connect := func(signWith ed25519.PrivateKey) error {
-		ts := redirectServer(t, srvPriv, signWith, target)
+	connect := func(signWith ed25519.PrivateKey, tamper ...bool) error {
+		ts := redirectServer(t, srvPriv, signWith, target, len(tamper) > 0)
 		c := NewSignalClient(log, nil)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return c.Connect(ctx, strings.TrimPrefix(ts.URL, "http://"), hex.EncodeToString(srvPub), cliPriv, cliPub, "t#1")
+		return c.Connect(ctx, "ws://"+strings.TrimPrefix(ts.URL, "http://"), hex.EncodeToString(srvPub), cliPriv, cliPub, "t#1")
 	}
 
 	var rd *RedirectError
@@ -88,5 +92,8 @@ func TestConnectRedirect(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "verification failed") {
 		t.Fatalf("ожидалась ошибка проверки подписи, получено %v", err)
+	}
+	if err := connect(srvPriv, true); err == nil || !strings.Contains(err.Error(), "verification failed") {
+		t.Fatalf("redirect с подменённым addr должен отвергаться, получено %v", err)
 	}
 }

@@ -29,6 +29,6 @@ const VPS2SignalPubkey = "527534742f96d8b8f76930edc155956533f66c71558f8e40498fd3
 // Обновление: при компрометации ключа deploy-signal.sh регенерит .key и
 // автоматически обновит VPSSignalPubkey; auto-update раскатает новый клиент.
 var KnownSignalServers = []KnownSignalServer{
-	{Address: "n1.northwindcdn.com:9741", Pubkey: VPSSignalPubkey},
-	{Address: "n2.northwindcdn.com:9741", Pubkey: VPS2SignalPubkey},
+	{Address: "n1.northwindcdn.com:9743", Pubkey: VPSSignalPubkey},
+	{Address: "n2.northwindcdn.com:9743", Pubkey: VPS2SignalPubkey},
 }
