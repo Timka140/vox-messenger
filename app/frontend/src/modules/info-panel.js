@@ -92,6 +92,14 @@ setCallOpenInfoPanel(openInfoPanel);
 dom.infoToggleBtn.addEventListener("click", function () {
     if (dom.infoPanel.classList.contains("open")) closeInfoPanel(); else openInfoPanel();
 });
+// Клик по имени в шапке чата — то же, что кнопка «Инфо» (привычно по Telegram)
+var chatHeaderInfo = document.querySelector("#chat-header .chat-header-info");
+if (chatHeaderInfo) {
+    chatHeaderInfo.style.cursor = "pointer";
+    chatHeaderInfo.addEventListener("click", function () {
+        if (dom.infoPanel.classList.contains("open")) closeInfoPanel(); else openInfoPanel("info");
+    });
+}
 dom.infoCloseBtn.addEventListener("click", closeInfoPanel);
 dom.infoPanel.querySelectorAll(".info-tab").forEach(function (tab) {
     tab.addEventListener("click", function () { switchInfoTab(tab.dataset.infoTab); });

@@ -25,6 +25,8 @@ import { showError } from "./toast.js";
 import { sendPathAttachments } from "./chat.js";
 import { buildDialogOverlay } from "./ui.js";
 import { buildDisplayPicker } from "./screenshare.js";
+import { isSendKey } from "./composer-keys.js";
+import { clearDraft, currentKey as draftKey } from "./drafts.js";
 
 var items = [];       // PreparedAttachment[]: {path, name, size, mime, isImage, previewUrl, width, height}
 var asPhoto = true;   // «Как фото» — сжатие и альбом; «Как файлы» — оригиналы
@@ -186,6 +188,7 @@ async function send() {
     render();
     dom.messageInput.value = "";
     dom.messageInput.style.height = "auto";
+    clearDraft(draftKey());
     try {
         await sendPathAttachments(out, caption);
     } catch (err) {
@@ -283,7 +286,7 @@ export function initComposerAttach() {
     // (слушатель в фазе перехвата на самом поле срабатывает раньше обычного).
     dom.messageInput.addEventListener("keydown", function (e) {
         if (items.length === 0) return;
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (isSendKey(e)) {
             e.preventDefault();
             e.stopImmediatePropagation();
             send();

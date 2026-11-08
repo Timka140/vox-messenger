@@ -304,6 +304,11 @@
     background: var(--input-bg);
     color: var(--text-primary);
 }
+/* Галочка перед «У вас последняя версия» — с зазором и по базовой линии */
+.settings-updates-status svg {
+    vertical-align: -2px;
+    margin-right: 6px;
+}
 
 .settings-updates-status.is-checking {
     opacity: 0.7;

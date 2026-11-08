@@ -26,6 +26,7 @@ type NotifyService struct {
 	win       NotifyWindow
 	emit      func(name string, data any)
 	focusMain func()
+	attention func()
 }
 
 // NotifyWindowWidth — ширина окна уведомлений (px). Высоту задаёт страница.
@@ -79,6 +80,24 @@ func (s *NotifyService) SetFocusMain(fn func()) {
 	s.focusMain = fn
 }
 
+// SetAttention — привлечь внимание к главному окну, когда оно не в фокусе
+// (мигание кнопки в панели задач, main.go). Зовётся на каждое уведомление и
+// входящий звонок; с режимом «выключены» — нет.
+func (s *NotifyService) SetAttention(fn func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.attention = fn
+}
+
+func (s *NotifyService) requestAttention() {
+	s.mu.Lock()
+	fn := s.attention
+	s.mu.Unlock()
+	if fn != nil {
+		fn()
+	}
+}
+
 func (s *NotifyService) mode() string {
 	if s.getSetting == nil {
 		return "custom"
@@ -103,8 +122,10 @@ func (s *NotifyService) ShowToast(req ToastRequest) error {
 	case "off":
 		return nil
 	case "system":
+		s.requestAttention()
 		return s.pushSystem(req.Title, req.Body)
 	}
+	s.requestAttention()
 
 	s.mu.Lock()
 	emit, win := s.emit, s.win
@@ -179,6 +200,9 @@ type IncomingCallInfo struct {
 // custom). false — режим system/off или окно ещё не готово: вызывающий
 // покажет старое отдельное окно incoming-call.html.
 func (s *NotifyService) ShowIncomingCall(info IncomingCallInfo) bool {
+	if s.mode() != "off" {
+		s.requestAttention()
+	}
 	if s.mode() != "custom" {
 		return false
 	}

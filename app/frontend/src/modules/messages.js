@@ -201,6 +201,18 @@ function settleScrollToBottom() {
     };
     requestAnimationFrame(tick);
 }
+// Лента остаётся у низа при изменении своей высоты: ресайз окна, рост поля
+// ввода на несколько строк, полоса ответа/вложений. Пин снимается, как только
+// пользователь сам ушёл вверх (по событию scroll), и ставится у низа.
+(function initKeepBottomOnResize() {
+    var el = dom.messagesDiv;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    var pinned = true;
+    el.addEventListener("scroll", function () { pinned = isNearBottom(); }, { passive: true });
+    new ResizeObserver(function () {
+        if (pinned) el.scrollTop = el.scrollHeight;
+    }).observe(el);
+})();
 (function initSettleOnImageLoad() {
     if (!dom.messagesDiv) return;
     // load у <img> не всплывает — ловим на capture-фазе контейнера.
@@ -943,6 +955,8 @@ function buildMeta(msg) {
     var time = document.createElement("span");
     time.className = "bubble-time";
     time.textContent = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    // Полная дата по наведению — в ленте только часы:минуты
+    time.title = formatFullDateTime(msg.timestamp);
     meta.appendChild(time);
 
     if (msg.outbound) {
@@ -1866,6 +1880,17 @@ function hueFromId(hexStr) {
 
 function rowById(id) {
     return dom.messagesDiv.querySelector('.message-row[data-msg-id="' + cssEscape(String(id)) + '"]');
+}
+
+// formatFullDateTime — «16 сентября 2026 г., 11:33» по языку интерфейса
+function formatFullDateTime(ts) {
+    try {
+        return new Intl.DateTimeFormat(getLocale(), {
+            day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+        }).format(new Date(ts));
+    } catch (e) {
+        return new Date(ts).toLocaleString();
+    }
 }
 
 function buildDateDivider(ts) {

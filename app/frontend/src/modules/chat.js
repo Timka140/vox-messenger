@@ -14,6 +14,8 @@ import { t } from "./i18n.js";
 // и зовётся из composer-attach.js. Compose-strip-flow удалён.
 import { showError, showInfo } from "./toast.js";
 import * as uploads from "./uploads.js";
+import { isSendKey } from "./composer-keys.js";
+import { clearDraft, restoreDraft, currentKey as draftKey } from "./drafts.js";
 
 // Правый клик по шапке чата — меню «…» (chat-menu.js).
 
@@ -63,6 +65,7 @@ function finishEdit() {
     var newContent = dom.messageInput.value.trim();
     dom.messageInput.value = "";
     dom.messageInput.style.height = "auto";
+    restoreDraft(); // черновик, который был до редактирования
 
     if (!newContent || newContent === es.originalContent) return;
 
@@ -81,8 +84,10 @@ function cancelEdit() {
     editState = null;
     hideEditStrip();
     es.wrapper.classList.remove("editing");
+    // В поле возвращается черновик, который был до редактирования
     dom.messageInput.value = "";
     dom.messageInput.style.height = "auto";
+    restoreDraft();
 }
 
 // Полоса над полем съедает высоту ленты: если лента была у низа — оставляем её
@@ -213,6 +218,7 @@ export async function sendMessage(textOverride, replyOverride) {
         dom.messageInput.value = "";
         dom.messageInput.style.height = "auto";
         cancelReply();
+        clearDraft(draftKey());
     }
     var opts = replyRef ? { replyTo: replyRef } : null;
     try {
@@ -408,7 +414,8 @@ dom.messageInput.addEventListener("keydown", function (e) {
         }
         return;
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Enter или Ctrl+Enter — по настройке «Отправка сообщений» (composer-keys.js)
+    if (isSendKey(e)) {
         e.preventDefault();
         if (editState) {
             finishEdit();

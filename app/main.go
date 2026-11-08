@@ -522,6 +522,14 @@ func main() {
 		mainWin.Show()
 		mainWin.Focus()
 	})
+	// Окно не в фокусе — мигает кнопка в панели задач (FLASHW_TIMERNOFG:
+	// само гаснет, когда окно выходит на передний план). В фокусе — ничего:
+	// пользователь и так в Vox, просто в другом чате.
+	notifySvc.SetAttention(func() {
+		if !mainWin.IsFocused() {
+			mainWin.Flash(true)
+		}
+	})
 	// Приглашение в групповой звонок — карточкой в окне уведомлений.
 	// Личный звонок — отдельное окно по центру (ниже).
 	callsSvc.SetIncomingNotifier(notifySvc.ShowIncomingCall)

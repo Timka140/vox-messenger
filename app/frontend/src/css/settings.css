@@ -145,9 +145,18 @@
     cursor: pointer;
     color: inherit;
     font-family: inherit;
+    text-align: left; /* кнопка центрирует текст — описание уезжало в середину */
     display: flex;
     align-items: center;
     gap: 12px;
+}
+/* Описание в свёрнутой шапке — одной строкой, с многоточием */
+.st-collapse-head > .st-desc {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .st-collapse > .st-collapse-head:not(.st-card-head) { border-top: 1px solid var(--border); padding-top: 12px; gap: 8px; }
 .st-collapse-title { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }

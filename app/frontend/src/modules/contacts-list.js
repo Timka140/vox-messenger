@@ -18,6 +18,8 @@ import { showSuccess } from "./toast.js";
 import { isInviteLink, renderJoinCard, removeJoinCard } from "./group-join.js";
 import { isPinned, pinRank, togglePinned } from "./chat-prefs.js";
 import { isBlocked } from "./blocked.js";
+import { getDraft, restoreDraft } from "./drafts.js";
+import { Window } from "/wails/runtime.js";
 
 // copyMyContactLink — «Скопировать мою ссылку» из пустого списка (макет
 // EmptyStates «Первый запуск · нет друзей»).
@@ -187,6 +189,7 @@ async function _doRefreshPeers() {
         // пропущенные звонки), «Группы» — непрочитанные в группах.
         setNavBadge("chats-nav-badge", totalDmUnread);
         setNavBadge("groups-nav-badge", totalGroupUnread);
+        updateWindowTitle(totalDmUnread + totalGroupUnread);
 
         updateContacts(state.peers);
         updateGroupHeader();
@@ -200,6 +203,27 @@ function setNavBadge(id, n) {
     if (!badge) return;
     badge.textContent = n > 99 ? "99+" : String(n);
     badge.hidden = n === 0;
+}
+
+// Заголовок окна «Vox (3)» — непрочитанное видно в панели задач и в Alt+Tab,
+// когда окно свёрнуто или позади других.
+var _titleUnread = -1;
+function updateWindowTitle(n) {
+    if (n === _titleUnread) return;
+    _titleUnread = n;
+    try {
+        Window.SetTitle(n > 0 ? "Vox (" + (n > 99 ? "99+" : n) + ")" : "Vox");
+    } catch (e) { /* рантайм окна недоступен (тесты) */ }
+}
+
+// «Черновик: текст» в превью чата — неотправленное видно из списка (drafts.js).
+function renderDraftPreview(preview, draft) {
+    preview.innerHTML = "";
+    var label = document.createElement("span");
+    label.className = "contact-preview-draft";
+    label.textContent = t("chat.draft") + ": ";
+    preview.appendChild(label);
+    preview.appendChild(document.createTextNode(draft.replace(/\s+/g, " ").trim()));
 }
 
 // Polling убран — refreshPeers() вызывается из событий (events.js)
@@ -271,6 +295,7 @@ export async function selectPeer(peerID, peerObj) {
 
     dom.chatHeader.style.display = "flex";
     dom.inputArea.style.display = "block";
+    restoreDraft();
     var displayName = peerObj ? (peerObj.nickname || peerObj.shortId) : peerID.substring(0, 16);
     dom.chatPeerName.textContent = displayName;
     syncChatPeerStatus();
@@ -318,6 +343,7 @@ export async function selectGroup(groupID, groupObj) {
 
     dom.chatHeader.style.display = "flex";
     dom.inputArea.style.display = (groupObj && groupObj.left) ? "none" : "block";
+    restoreDraft();
     dom.chatPeerName.textContent = groupObj ? groupObj.name : "Group";
     var memberCount = groupObj ? groupObj.members : 0;
     dom.chatPeerStatus.innerHTML = '<i data-lucide="users" class="icon-14" style="margin-right:4px;"></i> ' + plural("info.n_members", memberCount);
@@ -476,7 +502,10 @@ export function updateContacts(peerList) {
         bottomRow.className = "contact-bottom-row";
         var preview = document.createElement("span");
         preview.className = "contact-preview";
-        if (lastMsg) {
+        var draft = peer.id !== state.selectedPeerID ? getDraft(peerKey(peer.id)) : "";
+        if (draft) {
+            renderDraftPreview(preview, draft);
+        } else if (lastMsg) {
             renderLastMessagePreview(preview, lastMsg, false);
         } else {
             preview.textContent = peer.online ? t("chat.online") : "";
@@ -622,9 +651,12 @@ function renderGroupsList() {
         gBottomRow.className = "contact-bottom-row";
         var gPreview = document.createElement("span");
         gPreview.className = "contact-preview";
+        var gDraft = group.groupId !== state.selectedGroupID ? getDraft(groupKey(group.groupId)) : "";
         if (group.left) {
             gPreview.textContent = t("chat.group_left");
             gPreview.style.color = "var(--yellow-text)";
+        } else if (gDraft) {
+            renderDraftPreview(gPreview, gDraft);
         } else if (group.lastMessage) {
             // Превью последнего сообщения (фаза 6c): «Ник: текст», голосовое, фото
             renderLastMessagePreview(gPreview, group.lastMessage, true);

@@ -56,6 +56,8 @@ import { initMeshtasticPanel } from "./meshtastic.js";
 import { initComposerAttach } from "./composer-attach.js";
 import { initChatSearch } from "./chat-search.js";
 import { initTyping } from "./typing.js";
+import "./hotkeys.js"; // Ctrl+K, Ctrl+PgUp/PgDn, Esc в настройках
+import "./drafts.js";  // черновики строки ввода по чатам
 
 // Wire cross-module callbacks (avoids circular deps)
 setRenderMessages(renderMessages);

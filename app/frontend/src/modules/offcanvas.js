@@ -159,7 +159,7 @@ async function newMessageDialog() {
             row.className = "nm-row";
             var av = document.createElement("span");
             av.className = "nm-av";
-            applyAvatar(av, f.peerId, f.nickname || f.peerId, { letters: 1 });
+            applyAvatar(av, f.peerId, f.nickname || f.peerId); // две буквы, как в списках
             var name = document.createElement("span");
             name.className = "nm-name";
             name.textContent = f.nickname || f.peerId.substring(0, 16);

@@ -326,6 +326,12 @@
     min-height: 120px;
     cursor: default;
 }
+/* Одиночное потерянное фото не занимает 4:3 на всю ширину пузыря */
+.attach-photos.count-1 .attach-photo.attach-photo-lost {
+    aspect-ratio: auto;
+    height: 120px;
+    min-height: 0;
+}
 .attach-photo-lost-inner {
     display: flex;
     flex-direction: column;

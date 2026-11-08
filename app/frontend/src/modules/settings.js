@@ -11,6 +11,7 @@ import { isInviteLink, joinGroupByLink } from "./group-join.js";
 import { loadBlocked, unblockPeer, blockedCount } from "./blocked.js";
 import { CHAT_COLORS, getBubbleColor, setBubbleColor } from "./chat-prefs.js";
 import { getSoundPrefs, setSoundVolume, setSoundEvent, playSoundPreview } from "./sounds.js";
+import { isSendOnEnter, setSendOnEnter } from "./composer-keys.js";
 
 // escapeAttr — экранирование для вставки в HTML-атрибут (кавычки + угловые).
 function escapeAttr(s) {
@@ -65,6 +66,7 @@ export async function showSettings() {
     }
     renderBubbleSwatches();
     syncSoundControls();
+    syncSendKey();
 
     // Анонимные логи: по умолчанию включено, выключено — только "0".
     if (diagLogsToggle) {
@@ -114,6 +116,18 @@ if (langSelect) {
     langSelect.addEventListener("change", function () {
         setLocale(langSelect.value);
     });
+}
+
+// «Отправка сообщений»: Enter или Ctrl+Enter (composer-keys.js)
+document.querySelectorAll('input[name="send-key"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+        if (r.checked) setSendOnEnter(r.value === "enter");
+    });
+});
+function syncSendKey() {
+    var v = isSendOnEnter() ? "enter" : "ctrl-enter";
+    var r = document.querySelector('input[name="send-key"][value="' + v + '"]');
+    if (r) r.checked = true;
 }
 
 

@@ -134,7 +134,7 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #3ba55c;
+    background: var(--green);
     border: 2px solid var(--bg-panel);
 }
 
@@ -335,6 +335,8 @@
 .contact-preview-author { color: var(--accent); font-weight: 600; }
 .contact-preview-author.is-me { color: var(--text-secondary); font-weight: 500; }
 .contact-preview.is-missed { color: var(--red-text); }
+/* «Черновик: …» (drafts.js) — неотправленный текст в чате, который не открыт */
+.contact-preview-draft { color: var(--red-text); font-weight: 600; }
 
 /* Закреплённый чат (фаза 7a): булавка у имени, как «Без звука». Время
    прижато вправо: auto-отступ у последнего из значков. */

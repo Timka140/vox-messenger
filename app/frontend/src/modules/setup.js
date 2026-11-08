@@ -8,6 +8,7 @@ import { loadMuted } from "./mute.js";
 import { loadChatPrefs } from "./chat-prefs.js";
 import { loadSoundPrefs } from "./sounds.js";
 import { loadBlocked } from "./blocked.js";
+import { loadSendMode } from "./composer-keys.js";
 import { applyAvatar, loadAvatarHashes } from "./avatar.js";
 
 // --- Init ---
@@ -75,6 +76,7 @@ export async function showChat() {
     loadChatPrefs();
     loadSoundPrefs();
     loadBlocked();
+    loadSendMode();
     state.myShortID = state.myID.substring(0, 16);
     var nick = "";
     try { nick = await svc("GetNickname"); } catch (e) {}

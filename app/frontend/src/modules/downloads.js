@@ -25,7 +25,10 @@ var paused = new Map(); // fileSha → fraction
 
 export function notePaused(fileSha, fraction) {
     if (!fileSha || !(fraction > 0)) return;
-    paused.set(fileSha, Math.min(1, fraction));
+    // Все чанки на месте, а файла нет (не собрался или удалён): «100 % ·
+    // Продолжить» только путает — показываем обычную кнопку «Скачать».
+    if (fraction >= 1) { paused.delete(fileSha); return; }
+    paused.set(fileSha, fraction);
 }
 
 export function pausedFraction(fileSha) {
