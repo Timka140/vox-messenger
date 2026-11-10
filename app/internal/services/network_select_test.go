@@ -64,14 +64,57 @@ func TestConnectOrderDevListKeepsOrder(t *testing.T) {
 	}
 }
 
+// Встроенные узлы для тестов: в самом клиенте список пуст.
+const (
+	testNode1Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	testNode2Key = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+)
+
+func setKnownServers(t *testing.T, list []network.KnownSignalServer) {
+	t.Helper()
+	prev := network.KnownSignalServers
+	network.KnownSignalServers = list
+	t.Cleanup(func() { network.KnownSignalServers = prev })
+}
+
+func setTestNodes(t *testing.T) {
+	t.Helper()
+	setKnownServers(t, []network.KnownSignalServer{
+		{Address: "node1.test:9743", Pubkey: testNode1Key},
+		{Address: "node2.test:9743", Pubkey: testNode2Key},
+	})
+}
+
+// Пустой список встроенных узлов: записи прежних версий уходят, ручные и
+// cluster остаются.
+func TestSeedEmptyListDropsAllBuiltin(t *testing.T) {
+	setKnownServers(t, nil)
+	n, store, _ := newBlockTestNetwork(t)
+	db := store.DB()
+	if _, err := db.Exec(`INSERT INTO signal_servers (address, pubkey, source) VALUES
+		('old-node.test:9743', ?, 'builtin'),
+		('10.0.0.1:1', '', 'manual'),
+		('10.0.0.2:1', '', 'cluster')`, testNode1Key); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := n.getServerEntries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := addrs(entries); got != "10.0.0.1:1,10.0.0.2:1" {
+		t.Fatalf("должны остаться только ручная и cluster-записи: %s", got)
+	}
+}
+
 func TestSeedDropsRetiredBuiltin(t *testing.T) {
+	setTestNodes(t)
 	n, store, _ := newBlockTestNetwork(t)
 	db := store.DB()
 	// Старый клиент: встроенный узел под прежним адресом, плюс ручная и cluster-записи.
 	if _, err := db.Exec(`INSERT INTO signal_servers (address, pubkey, source) VALUES
 		('198.51.100.7:9741', ?, 'builtin'),
 		('10.0.0.1:1', '', 'manual'),
-		('10.0.0.2:1', '', 'cluster')`, network.VPSSignalPubkey); err != nil {
+		('10.0.0.2:1', '', 'cluster')`, testNode1Key); err != nil {
 		t.Fatal(err)
 	}
 	n.seedKnownServers()
@@ -97,6 +140,7 @@ func TestSeedDropsRetiredBuiltin(t *testing.T) {
 }
 
 func TestMergeClusterServers(t *testing.T) {
+	setTestNodes(t)
 	n, store, _ := newBlockTestNetwork(t)
 	db := store.DB()
 	n.seedKnownServers() // builtin: vps1, vps2
@@ -109,7 +153,7 @@ func TestMergeClusterServers(t *testing.T) {
 	}
 
 	err := n.mergeClusterServers([]network.ServerNode{
-		{Addr: vps1, Pubkey: network.VPSSignalPubkey},
+		{Addr: vps1, Pubkey: testNode1Key},
 		{Addr: vps2, Pubkey: key3}, // ключ не совпадает с зашитым
 		{Addr: "10.0.0.3:1", Pubkey: strings.ToUpper(key3)},
 		{Addr: "10.0.0.1:1", Pubkey: key1},
@@ -135,7 +179,7 @@ func TestMergeClusterServers(t *testing.T) {
 	if r, _ := get("10.0.0.1:1"); r.source != "manual" || r.pubkey != key1 {
 		t.Fatalf("ручная запись: источник сохраняется, пустой ключ заполняется: %+v", r)
 	}
-	if r, _ := get(vps2); r.source != "builtin" || r.pubkey != network.VPS2SignalPubkey {
+	if r, _ := get(vps2); r.source != "builtin" || r.pubkey != testNode2Key {
 		t.Fatalf("зашитый ключ vps2 не должен перезаписываться: %+v", r)
 	}
 	for _, bad := range []string{"bad address", "10.0.0.4:1"} {

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # lib/node.sh — общие функции скриптов, работающих с узлами кластера Vox.
 #
-# Узел описывается файлом build/nodes/<name>.conf (в git, без секретов).
+# Узел описывается файлом build/nodes/<name>.conf (не в git; пример —
+# build/nodes/node.conf.example).
 # Секреты узла лежат в build/remote/<name>/ (.env, sfu.env, vox-signal.key,
-# ssh.conf с NODE_SSH / NODE_SSH_PORT / NODE_ROOT_SSH / NODE_IP), каталог в .gitignore.
+# ssh.conf с NODE_SSH / NODE_SSH_PORT / NODE_ROOT_SSH / NODE_IP / NODE_HOST), каталог в .gitignore.
 # Пример ssh.conf — build/nodes/ssh.conf.example.
 #
 # Использование:
@@ -40,7 +41,6 @@ load_node() {
     NODE_WS_TLS_PORT=9743
     NODE_SOFT_LIMIT=400
     NODE_PUBKEY=""
-    NODE_PINNED=0
     NODE_SETUP=manual
     NODE_ROOT_SSH=""
     NODE_TURN_MIN_PORT=""
@@ -56,8 +56,12 @@ load_node() {
         echo "error: нет NODE_SSH для узла $name (ожидается в $ssh_conf)" >&2
         return 1
     fi
-    if [ -z "$NODE_DIR" ] || [ -z "$NODE_HOST" ]; then
-        echo "error: в $conf должны быть NODE_DIR, NODE_HOST" >&2
+    if [ -z "$NODE_DIR" ]; then
+        echo "error: в $conf должен быть NODE_DIR" >&2
+        return 1
+    fi
+    if [ -z "$NODE_HOST" ]; then
+        echo "error: нет NODE_HOST для узла $name (ожидается в $ssh_conf)" >&2
         return 1
     fi
     if [ -z "$NODE_IP" ]; then

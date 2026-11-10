@@ -1,5 +1,5 @@
-// Package admin — admin API узла /admin/v1/* для шлюза example.org/admin.
-// Контракт — design/northwind-site/ADMIN-CONTRACT.md §1: запросы подписаны
+// Package admin — admin API узла /admin/v1/* для внешнего шлюза админки.
+// Контракт: запросы подписаны
 // HMAC-SHA256 общим ADMIN_TOKEN, ответы JSON в потоке кадров AES-256-GCM (seal.go).
 package admin
 

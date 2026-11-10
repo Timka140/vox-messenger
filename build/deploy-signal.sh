@@ -6,8 +6,8 @@
 #
 # Секреты узла — build/remote/<node>/{.env,vox-signal.key}. Локальный ключ —
 # source of truth: если его нет, он генерируется и заливается. Pubkey ключа
-# сверяется с NODE_PUBKEY из конфига узла. Для узла с NODE_PINNED=1 pubkey
-# синхронизируется в клиентский known_servers.go.
+# сверяется с NODE_PUBKEY из конфига узла. В клиент узлы не зашиты: адрес и
+# pubkey пользователь вводит в настройках.
 #
 # Перед заменой бинаря на узле делается бэкап signal-server.bak-YYYYMMDD-HHMMSS
 # и, при остановленном сервере, groups.db.bak-YYYYMMDD-HHMMSS (+ -wal/-shm) с той
@@ -37,7 +37,7 @@ if [ ! -f "$BINARY" ]; then
 fi
 
 ENV_FILE="$(node_secret .env)"
-PUBKEY="$(KEY_DIR="$SECRETS_DIR" UPDATE_CLIENT="$NODE_PINNED" "$SCRIPT_DIR/sync-signal-pubkey.sh" | tail -1)"
+PUBKEY="$(KEY_DIR="$SECRETS_DIR" "$SCRIPT_DIR/sync-signal-pubkey.sh" | tail -1)"
 KEY_FILE="$(node_secret vox-signal.key)"
 echo "Узел $NODE_NAME, signal pubkey: $PUBKEY"
 
@@ -49,8 +49,7 @@ if [ -z "$NODE_PUBKEY" ]; then
     echo "Warning: впишите NODE_PUBKEY=$PUBKEY в build/nodes/$NODE_NAME.conf"
 fi
 
-# cluster.env — узлы кластера из build/nodes/*.conf (адреса и pubkey не
-# секрет). Линки и адреса для клиентов — TLS-порт (wss, сертификат узла
+# cluster.env — узлы кластера из build/nodes/*.conf. Линки и адреса для клиентов — TLS-порт (wss, сертификат узла
 # подтверждается его ключом при входе). Себя сервер из CLUSTER_PEERS пропускает сам. Узел без
 # NODE_PUBKEY в список не попадает.
 CLUSTER_ENV="$SECRETS_DIR/cluster.env"
@@ -103,9 +102,3 @@ node_ssh "sleep 2; curl -fsS -m 5 http://127.0.0.1:\$(grep -E '^WS_PORT=' $REMOT
     || echo "WARN: /health не ответил — смотрите $REMOTE_DIR/signal-server.log"
 
 echo "Deploy complete."
-if [ "$NODE_PINNED" = "1" ]; then
-    echo
-    echo "Не забудь:"
-    echo "  1) git diff app/internal/network/known_servers.go  → закоммитить"
-    echo "  2) build/release.sh vX.YY.YYY.YYYY \"changelog\" force"
-fi

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# sync-signal-pubkey.sh — генерирует/читает vox-signal.key узла и (для узла,
-# чей ключ зашит в клиент) обновляет const VPSSignalPubkey в
-# app/internal/network/known_servers.go.
+# sync-signal-pubkey.sh — генерирует/читает vox-signal.key узла и печатает
+# его pubkey.
 #
 # Идемпотентно: если ключ уже есть локально — просто читает pubkey.
 # Если ключа нет — собирает локально signal-server, запускает с --print-pubkey
@@ -9,11 +8,10 @@
 #
 # Env:
 #   KEY_DIR        каталог секретов узла (по умолчанию build/remote/vps1)
-#   UPDATE_CLIENT  1 = править known_servers.go (по умолчанию 1)
 #
 # Usage:
 #   ./build/sync-signal-pubkey.sh
-#   KEY_DIR=build/remote/vps2 UPDATE_CLIENT=0 ./build/sync-signal-pubkey.sh
+#   KEY_DIR=build/remote/vps2 ./build/sync-signal-pubkey.sh
 #
 # Output: hex pubkey последней строкой stdout.
 
@@ -23,8 +21,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 KEY_DIR="${KEY_DIR:-$SCRIPT_DIR/remote/vps1}"
 KEY_FILE="$KEY_DIR/vox-signal.key"
-UPDATE_CLIENT="${UPDATE_CLIENT:-1}"
-KNOWN_SERVERS="$REPO_ROOT/app/internal/network/known_servers.go"
 
 mkdir -p "$KEY_DIR"
 
@@ -50,14 +46,6 @@ PUBKEY="$(cd "$KEY_DIR" && "$TMPBIN" --print-pubkey | tr -d '\r')"
 if ! echo "$PUBKEY" | grep -Eq '^[0-9a-f]{64}$'; then
     echo "Ошибка: невалидный pubkey '$PUBKEY'" >&2
     exit 1
-fi
-
-if [ "$UPDATE_CLIENT" = "1" ]; then
-    # Обновляем const в known_servers.go (sed in-place; формат строки фиксирован).
-    # Используем | как разделитель чтобы не конфликтовать с / в путях.
-    sed -i.bak "s|^const VPSSignalPubkey = \".*\"$|const VPSSignalPubkey = \"$PUBKEY\"|" "$KNOWN_SERVERS"
-    rm -f "$KNOWN_SERVERS.bak"
-    echo "Обновлён $KNOWN_SERVERS" >&2
 fi
 
 echo "$PUBKEY"

@@ -184,9 +184,8 @@ func (s *NetworkService) getServerEntries() ([]signalServerEntry, error) {
 	if dev := devSignalServers(); dev != nil {
 		return dev, nil
 	}
-	if len(network.KnownSignalServers) > 0 {
-		s.seedKnownServers()
-	}
+	// Всегда, даже с пустым списком: уборка встроенных записей прежних версий.
+	s.seedKnownServers()
 	return s.readServerEntries()
 }
 
@@ -268,18 +267,17 @@ func (s *NetworkService) seedKnownServers() {
 
 // dropRetiredBuiltinServers удаляет встроенные записи, которых больше нет в
 // KnownSignalServers: узел сменил адрес (IP → имя), и без этого у обновившихся
-// клиентов остаётся дубль того же сервера под старым адресом. Ручные и
-// cluster-записи не трогает.
+// клиентов остаётся дубль того же сервера под старым адресом. При пустом
+// списке уходят все встроенные записи. Ручные и cluster-записи не трогает.
 func (s *NetworkService) dropRetiredBuiltinServers() {
-	if len(network.KnownSignalServers) == 0 {
-		return
-	}
+	q := "DELETE FROM signal_servers WHERE source = 'builtin'"
 	args := make([]any, 0, len(network.KnownSignalServers))
 	for _, k := range network.KnownSignalServers {
 		args = append(args, k.Address)
 	}
-	q := "DELETE FROM signal_servers WHERE source = 'builtin' AND address NOT IN (?" +
-		strings.Repeat(", ?", len(args)-1) + ")"
+	if len(args) > 0 {
+		q += " AND address NOT IN (?" + strings.Repeat(", ?", len(args)-1) + ")"
+	}
 	res, err := s.store.DB().Exec(q, args...)
 	if err != nil {
 		s.log.Warn("drop retired builtin signal servers failed", slog.String("error", err.Error()))

@@ -80,7 +80,7 @@ onnxruntime и модели — это готовая папка для ручн
 ### Тестовый клиент на конкретном узле (только `ENV=local`)
 
 ```powershell
-$env:ENV="local"; $env:VOX_SIGNAL_SERVERS="node2.example.org:9741=<pubkey vps2>"
+$env:ENV="local"; $env:VOX_SIGNAL_SERVERS="node2.example.org:9741=<pubkey узла>"
 ```
 
 ---
@@ -90,12 +90,9 @@ $env:ENV="local"; $env:VOX_SIGNAL_SERVERS="node2.example.org:9741=<pubkey vps2>"
 Серверы Vox (signal, SFU, debug, coturn) крутятся на нескольких узлах.
 Контракт кластера — `docs/cluster-contract.md`.
 
-| Узел | Конфиг | Каталог |
-|---|---|---|
-| vps1 | `build/nodes/vps1.conf` | `~/vox` |
-| vps2 | `build/nodes/vps2.conf` | `/home/vox/vox` |
-
-Конфиг узла (`build/nodes/<node>.conf`, в git) — имя узла и pubkey сигналки.
+Конфиг узла — `build/nodes/<node>.conf`: каталог на узле и pubkey сигналки.
+В git его нет, пример — `build/nodes/node.conf.example`; имя файла — имя узла
+для скриптов (`NODE=<node>`, в примерах ниже — vps1 и vps2).
 Секреты узла — `build/remote/<node>/` (`.env`, `sfu.env`, `vox-signal.key`,
 `ssh.conf` с `NODE_SSH`, `NODE_SSH_PORT`, `NODE_ROOT_SSH`, `NODE_IP`; пример —
 `build/nodes/ssh.conf.example`), в `.gitignore`. Локальный `vox-signal.key` —
@@ -120,8 +117,9 @@ DRY_RUN=1 NODE=vps2 ./build/deploy-signal.sh   # только напечатат
 свежее даже при заливке старой сборки.
 
 `deploy-signal.sh` делает бэкап `signal-server.bak-YYYYMMDD-HHMMSS` (и
-`groups.db`) перед заменой и проверяет `/health`. Только для узла с
-`NODE_PINNED=1` (vps1) pubkey синхронизируется в клиентский `known_servers.go`.
+`groups.db`) перед заменой и проверяет `/health`. В клиент узлы не зашиты
+(`known_servers.go` пуст): адрес и pubkey узла вводятся в настройках клиента.
+Адрес узла для клиентов и кластера — `NODE_HOST` в `build/remote/<node>/ssh.conf`.
 
 Кластер: `deploy-signal.sh` генерирует `build/remote/<node>/cluster.env` из
 всех `build/nodes/*.conf` (`CLUSTER_SELF_ADDR`, `CLUSTER_PEERS`,
@@ -150,7 +148,7 @@ DRY_RUN=1 NODE=vps2 ./build/deploy-signal.sh   # только напечатат
 
 ### Новый узел
 
-1. `build/nodes/<node>.conf` по образцу vps2 (`NODE_SETUP=auto`, relay-порты TURN);
+1. `build/nodes/<node>.conf` из `node.conf.example` (`NODE_SETUP=auto`, relay-порты TURN);
    `build/remote/<node>/ssh.conf` с `NODE_SSH`, `NODE_ROOT_SSH`, `NODE_IP`.
 2. `build/remote/<node>/.env` и `sfu.env` по образцу vps2: свой `TURN_URL`,
    `SFU_ENDPOINT`, `RELEASES_DIR`, свой `SFU_SECRET` (одинаковый в обоих файлах),
@@ -226,8 +224,6 @@ Env: `RELEASE_NODES` (по умолчанию `vps1 vps2`), `KEEP_RELEASES` (3),
 5. Заливает на каждый узел в `$NODE_DIR/releases/` и удаляет версии, которых
    нет в манифесте (на узле нужен `jq`). Недоступный узел не валит остальные —
    скрипт напечатает команду `sync-releases.sh` для догонки.
-
-После релиза — сайт: `design/northwind-site/publish_release.py` (вне репо).
 
 ### Локальный билд клиента с конкретной версией (без релиза)
 

@@ -1,0 +1,21 @@
+# Пример конфига узла. Скопировать в build/nodes/<node>.conf (в git не
+# попадает) — имя файла и есть имя узла для скриптов: NODE=<node>.
+#
+# SSH-доступ, IP и адрес для клиентов (NODE_SSH, NODE_SSH_PORT, NODE_ROOT_SSH,
+# NODE_IP, NODE_HOST) — build/remote/<node>/ssh.conf, пример — ssh.conf.example.
+
+# Каталог сервисов Vox на узле.
+NODE_DIR=/home/vox/vox
+NODE_WS_PORT=9741
+
+# Ed25519 pubkey сигналки (node_id в кластере). Пустой — deploy-signal.sh
+# напечатает значение, его нужно вписать сюда.
+NODE_PUBKEY=
+
+# auto — первичная настройка скриптом build/setup-node.sh <node> (под root);
+# manual — узел настроен вручную (build/setup-server.sh под sudo).
+NODE_SETUP=auto
+
+# Relay-порты coturn, если стандартный диапазон занят другими сервисами.
+#NODE_TURN_MIN_PORT=52000
+#NODE_TURN_MAX_PORT=59999

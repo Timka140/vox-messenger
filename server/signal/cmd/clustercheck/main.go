@@ -176,11 +176,14 @@ func catchUpDuringOutage(addrB, healthA string, n int) {
 }
 
 func main() {
-	addrA := flag.String("a", "ws://node1.example.org:9741/ws", "узел A")
-	addrB := flag.String("b", "ws://node2.example.org:9741/ws", "узел B")
+	addrA := flag.String("a", "", "узел A, например ws://node1.example.org:9741/ws")
+	addrB := flag.String("b", "", "узел B")
 	count := flag.Int("n", 250, "сколько сообщений слать в офлайн")
 	catchUp := flag.String("catchup", "", "режим догона: адрес /health узла A, например http://node1.example.org:9741/health")
 	flag.Parse()
+	if *addrB == "" || (*addrA == "" && *catchUp == "") {
+		log.Fatal("укажите узлы: --a=ws://.../ws --b=ws://.../ws")
+	}
 
 	if *catchUp != "" {
 		catchUpDuringOutage(*addrB, *catchUp, *count)

@@ -168,7 +168,7 @@ build_platform() {
 
 build_platform windows amd64 .exe
 # Linux — нативно (release.sh запускается из WSL): GTK 3 + webkit2gtk-4.1 dev-пакеты,
-# libopus — third_party/opus/linux-amd64/libopus.a. После релиза сайт: publish_release.py.
+# libopus — third_party/opus/linux-amd64/libopus.a.
 build_platform linux   amd64 ""
 
 # shellcheck source=lib/node.sh

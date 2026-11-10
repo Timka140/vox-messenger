@@ -2,11 +2,8 @@
 # приватный ключ подписи релизов (release-sign.key). Бэкапить вручную.
 /.local/
 
-# Макеты (редизайн Vox, сайт и админка northwind) — вне репозитория.
-# Сайт example.org и общая админка — отдельный проект, их будущий код
-# сюда тоже не попадает.
+# Макеты (редизайн Vox) — вне репозитория.
 /design/
-/northwind*/
 /site/
 /admin/
 
@@ -16,6 +13,8 @@
 build/remote/vox-signal.key
 build/remote/*.env
 build/remote/*/
+# Конфиги своих узлов; в git только примеры (*.example).
+build/nodes/*.conf
 
 # Env-файлы (могут содержать секреты — лучше держать .env.example)
 .env

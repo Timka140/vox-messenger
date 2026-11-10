@@ -1,10 +1,10 @@
 # Vox
 
-**English** · [Русский](README.ru.md) · Website: [example.org/vox](https://example.org/vox/)
+**English** · [Русский](README.ru.md)
 
 A peer-to-peer messenger for small groups of friends: messages, voice channels, calls with screen sharing and files travel directly between participants over WebRTC. The signaling server helps participants find each other, and relays traffic itself only for large groups and voice rooms.
 
-Download for Windows and Linux: [example.org/vox](https://example.org/vox/). Run your own server: [example.org/vox/server](https://example.org/vox/server/).
+Download for Windows and Linux: [GitHub Releases](https://github.com/Timka140/vox-messenger/releases).
 
 ## Features
 

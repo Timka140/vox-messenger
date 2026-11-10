@@ -77,7 +77,7 @@ type DebugConfig struct {
 	KeepPerSource int `yaml:"debug_keep_per_source" env:"DEBUG_KEEP_PER_SOURCE" env-default:"10"`
 }
 
-// AdminConfig — admin API /admin/v1/* (design/northwind-site/ADMIN-CONTRACT.md §1).
+// AdminConfig — admin API /admin/v1/* (пакет internal/admin).
 // Token короче 32 символов — API выключен, все /admin/v1/* отвечают 404.
 type AdminConfig struct {
 	Token string `yaml:"admin_token" env:"ADMIN_TOKEN" env-default:""`

@@ -8,27 +8,12 @@ type KnownSignalServer struct {
 	Pubkey  string // hex Ed25519; пустой допустим только в dev-сборках (TOFU)
 }
 
-// VPSSignalPubkey — Ed25519 публичный ключ основного VPS-сервера сигналки.
-// Заполняется автоматически скриптом build/deploy-signal.sh из локального
-// build/remote/vox-signal.key при каждом деплое. Пустой = TOFU при первом
-// подключении (только если деплой ещё не запускался — dev-сборки).
-//
-// Эта строка ОТРЕДАКТИРОВАНА АВТОМАТИЧЕСКИ — формат должен сохраняться
-// для регекспа в build/sync-signal-pubkey.sh.
-const VPSSignalPubkey = "0000000000000000000000000000000000000000000000000000000000000001"
-
-// VPS2SignalPubkey — ключ второго узла кластера (vps2, build/nodes/vps2.conf).
-// Правится вручную: sync-signal-pubkey.sh обновляет только VPSSignalPubkey.
-const VPS2SignalPubkey = "0000000000000000000000000000000000000000000000000000000000000002"
-
 // KnownSignalServers — прибитый к версии бинаря список проверенных серверов
 // (узлы кластера, docs/cluster-contract.md §6.1). Порядок не важен — узел
 // выбирается по /healthz. Остальные узлы клиент узнаёт из server_list.
-// Адреса — имена узлов (build/nodes/*.conf NODE_HOST): узел переезжает на
-// другой IP правкой DNS, без релиза клиента.
-// Обновление: при компрометации ключа deploy-signal.sh регенерит .key и
-// автоматически обновит VPSSignalPubkey; auto-update раскатает новый клиент.
-var KnownSignalServers = []KnownSignalServer{
-	{Address: "node1.example.org:9743", Pubkey: VPSSignalPubkey},
-	{Address: "node2.example.org:9743", Pubkey: VPS2SignalPubkey},
-}
+//
+// Список пуст: общих серверов у Vox нет, сервер пользователь поднимает сам и
+// добавляет в настройках (запись source='manual'). Своя сборка может вписать
+// сюда свои узлы — они попадут в БД как 'builtin'; встроенные записи, которых
+// в списке больше нет, клиент удаляет сам (dropRetiredBuiltinServers).
+var KnownSignalServers = []KnownSignalServer{}

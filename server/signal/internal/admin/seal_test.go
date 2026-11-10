@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Общие векторы с шлюзом: design/northwind-site/test/gateway.test.mjs
+// Общие векторы с JS-тестом шлюза
 // ("response encryption: Go vectors"). Меняя схему, обновить оба теста.
 // Значения посчитаны Go-кодом; JS-тест независимо выводит тот же ключ
 // (node:crypto hkdfSync), расшифровывает эти потоки и шифрует байт в байт те же.

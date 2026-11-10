@@ -17,10 +17,11 @@
 
 | Узел | Адрес |
 |---|---|
-| vps1 | node1.example.org |
-| vps2 | node2.example.org |
+| vps1 | `NODE_HOST` узла vps1 |
+| vps2 | `NODE_HOST` узла vps2 |
 
-SSH-доступ — `build/remote/<node>/ssh.conf` (не в git).
+SSH-доступ и адреса узлов — `build/remote/<node>/ssh.conf` (не в git). В
+примерах ниже — `node1.example.org`, `node2.example.org`.
 
 Не входит в объём (see §12): Kademlia/DHT, федерация с чужими операторами
 (gestalt), офлайн-хранилище личных сообщений на сервере.
@@ -49,8 +50,8 @@ SSH-доступ — `build/remote/<node>/ssh.conf` (не в git).
 - Конфиг узла — переменные окружения сигналки в `cluster.env` рядом с `.env`
   (генерирует `build/deploy-signal.sh` из `build/nodes/*.conf`):
   ```bash
-  CLUSTER_SELF_ADDR=ws://node1.example.org:9741/ws   # как этот узел виден снаружи
-  CLUSTER_PEERS='ws://node1.example.org:9741/ws=<pubkey>;ws://node2.example.org:9741/ws=0000000000000000000000000000000000000000000000000000000000000002'
+  CLUSTER_SELF_ADDR=ws://node1.example.org:9741/ws     # как этот узел виден снаружи
+  CLUSTER_PEERS='ws://node1.example.org:9741/ws=<pubkey>;ws://node2.example.org:9741/ws=<pubkey>'
   CLUSTER_SOFT_LIMIT=400                               # см. §6.3 redirect
   ```
   Себя в `CLUSTER_PEERS` можно не исключать. Узел с pubkey не из списка линк
@@ -387,7 +388,8 @@ relay между узлами — Э3.
 Приёмка: с пустой БД клиент находит оба узла; при `soft_limit_clients: 1` на
 vps1 второй клиент уходит на vps2 через redirect; ручной сервер в списке не
 затирается.
-**Статус: выполнен 2026-09-16.** Клиент: оба узла в `KnownSignalServers`,
+**Статус: выполнен 2026-09-16.** Клиент: оба узла в `KnownSignalServers`
+(с 2026-11 список пуст — сервер пользователь добавляет сам),
 колонка `signal_servers.source` (builtin / manual / cluster, миграция 64),
 выбор узла по `/healthz` (`network_select.go`), общий перебор с одним
 переходом по redirect для `Connect` и `ReconnectSignal`. Сервер: `server_list`
