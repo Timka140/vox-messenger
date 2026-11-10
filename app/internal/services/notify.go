@@ -81,12 +81,34 @@ func (s *NotifyService) SetFocusMain(fn func()) {
 }
 
 // SetAttention — привлечь внимание к главному окну, когда оно не в фокусе
-// (мигание кнопки в панели задач, main.go). Зовётся на каждое уведомление и
-// входящий звонок; с режимом «выключены» — нет.
+// (мигание кнопки в панели задач, main.go). Зовётся на уведомления, которые
+// ждут ответа (attentionKind), входящий звонок и RequestAttention; с режимом
+// «выключены» — нет.
 func (s *NotifyService) SetAttention(fn func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.attention = fn
+}
+
+// RequestAttention — привлечь внимание без карточки. Фронт зовёт на сообщение
+// в открытый чат при окне не в фокусе (карточку для открытого чата он не
+// показывает), main.go — на окно входящего личного звонка.
+func (s *NotifyService) RequestAttention() error {
+	if s.mode() != "off" {
+		s.requestAttention()
+	}
+	return nil
+}
+
+// attentionKind — уведомление ждёт реакции пользователя. «Зашёл / вышел из
+// голосового канала» и служебные карточки таскбар не мигают: иначе их не
+// отличить от непрочитанного сообщения.
+func attentionKind(kind string) bool {
+	switch kind {
+	case "voice", "info":
+		return false
+	}
+	return true
 }
 
 func (s *NotifyService) requestAttention() {
@@ -118,14 +140,16 @@ func (s *NotifyService) ShowToast(req ToastRequest) error {
 		s.log.Debug("toast suppressed: fullscreen app")
 		return nil
 	}
-	switch s.mode() {
-	case "off":
+	mode := s.mode()
+	if mode == "off" {
 		return nil
-	case "system":
+	}
+	if attentionKind(req.Kind) {
 		s.requestAttention()
+	}
+	if mode == "system" {
 		return s.pushSystem(req.Title, req.Body)
 	}
-	s.requestAttention()
 
 	s.mu.Lock()
 	emit, win := s.emit, s.win

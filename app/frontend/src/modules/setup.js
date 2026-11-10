@@ -9,6 +9,7 @@ import { loadChatPrefs } from "./chat-prefs.js";
 import { loadSoundPrefs } from "./sounds.js";
 import { loadBlocked } from "./blocked.js";
 import { loadSendMode } from "./composer-keys.js";
+import { loadDrafts } from "./drafts.js";
 import { applyAvatar, loadAvatarHashes } from "./avatar.js";
 
 // --- Init ---
@@ -77,6 +78,7 @@ export async function showChat() {
     loadSoundPrefs();
     loadBlocked();
     loadSendMode();
+    loadDrafts().then(refreshPeers); // «Черновик: …» в списке чатов
     state.myShortID = state.myID.substring(0, 16);
     var nick = "";
     try { nick = await svc("GetNickname"); } catch (e) {}

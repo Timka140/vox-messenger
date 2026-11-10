@@ -20,6 +20,7 @@ import { buildDialogOverlay, escapeHtml, confirmDialog as uiConfirmDialog } from
 import { showSuccess, showError } from "./toast.js";
 import { applyAvatar } from "./avatar.js";
 import { isMuted, toggleMuted, peerKey } from "./mute.js";
+import { forgetDraft } from "./drafts.js";
 
 // Тумблер «Уведомления от этого контакта» открытого профиля — обновление по
 // vox:ui-mute-changed (тот же «Без звука», что в «…» и панели).
@@ -200,7 +201,7 @@ async function renderFriend(f, gen, confirmRemove) {
     danger.appendChild(btn(t("profile.remove_friend"), "user-minus", "dng", () => askRemoveFriend(peerId, nick)));
     danger.appendChild(btn(t("profile.delete_chat"), "trash-2", "dng", () => {
         confirmDialog(t("profile.delete_chat"), t("profile.confirm_delete").replace("{name}", nick || peerId.substring(0, 8)), t("profile.delete_chat"), () => {
-            svc("DeleteConversation", peerId).then(() => { refreshPeers(); showSuccess(t("profile.chat_deleted")); })
+            svc("DeleteConversation", peerId).then(() => { forgetDraft(peerKey(peerId)); refreshPeers(); showSuccess(t("profile.chat_deleted")); })
                 .catch((err) => showError(String(err && err.message || err)));
         });
     }));

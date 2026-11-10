@@ -155,11 +155,16 @@ export function renderMessages(msgs, opts) {
             }
         }
     }
+    // _pinnedBottom сверяем сами: если scrollTop не изменился (0 → 0), события
+    // scroll не будет, и флаг остался бы от прежнего чата.
     if (opts.preserveScroll) {
         el.scrollTop = el.scrollHeight - fromBottom;
+        _pinnedBottom = isNearBottom();
     } else if (newDivider) {
         el.scrollTop = Math.max(0, newDivider.offsetTop - 80);
+        _pinnedBottom = isNearBottom();
     } else {
+        _pinnedBottom = true;
         settleScrollToBottom();
     }
     document.dispatchEvent(new CustomEvent("vox:ui-messages-rendered"));
@@ -204,13 +209,13 @@ function settleScrollToBottom() {
 // Лента остаётся у низа при изменении своей высоты: ресайз окна, рост поля
 // ввода на несколько строк, полоса ответа/вложений. Пин снимается, как только
 // пользователь сам ушёл вверх (по событию scroll), и ставится у низа.
+var _pinnedBottom = true;
 (function initKeepBottomOnResize() {
     var el = dom.messagesDiv;
     if (!el || typeof ResizeObserver === "undefined") return;
-    var pinned = true;
-    el.addEventListener("scroll", function () { pinned = isNearBottom(); }, { passive: true });
+    el.addEventListener("scroll", function () { _pinnedBottom = isNearBottom(); }, { passive: true });
     new ResizeObserver(function () {
-        if (pinned) el.scrollTop = el.scrollHeight;
+        if (_pinnedBottom) el.scrollTop = el.scrollHeight;
     }).observe(el);
 })();
 (function initSettleOnImageLoad() {
@@ -1883,11 +1888,18 @@ function rowById(id) {
 }
 
 // formatFullDateTime — «16 сентября 2026 г., 11:33» по языку интерфейса
+// Форматтер один на язык: создавать его на каждое сообщение ленты дорого.
+var _fullDateFmt = null, _fullDateLocale = "";
 function formatFullDateTime(ts) {
     try {
-        return new Intl.DateTimeFormat(getLocale(), {
-            day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
-        }).format(new Date(ts));
+        var loc = getLocale();
+        if (!_fullDateFmt || _fullDateLocale !== loc) {
+            _fullDateFmt = new Intl.DateTimeFormat(loc, {
+                day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+            });
+            _fullDateLocale = loc;
+        }
+        return _fullDateFmt.format(new Date(ts));
     } catch (e) {
         return new Date(ts).toLocaleString();
     }

@@ -8,9 +8,13 @@ document.addEventListener("contextmenu", (e) => {
     // Close existing menu when opening new one elsewhere
     if (!menu.contains(e.target)) hide();
 });
+// На capture-фазе и с preventDefault: Esc, закрывший меню, не должен заодно
+// закрыть то, что под ним (Настройки — hotkeys.js смотрит defaultPrevented).
 document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") hide();
-});
+    if (e.key !== "Escape" || menu.style.display !== "block") return;
+    e.preventDefault();
+    hide();
+}, true);
 
 function hide() {
     menu.style.display = "none";

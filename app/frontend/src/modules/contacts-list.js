@@ -18,7 +18,7 @@ import { showSuccess } from "./toast.js";
 import { isInviteLink, renderJoinCard, removeJoinCard } from "./group-join.js";
 import { isPinned, pinRank, togglePinned } from "./chat-prefs.js";
 import { isBlocked } from "./blocked.js";
-import { getDraft, restoreDraft } from "./drafts.js";
+import { getDraft, restoreDraft, forgetDraft } from "./drafts.js";
 import { Window } from "/wails/runtime.js";
 
 // copyMyContactLink — «Скопировать мою ссылку» из пустого списка (макет
@@ -554,6 +554,7 @@ export function updateContacts(peerList) {
                                 dom.messagesDiv.innerHTML = "";
                             }
                             delete state.lastMessages[p.id];
+                            forgetDraft(key);
                             refreshPeers();
                         });
                     }}
@@ -604,8 +605,8 @@ function groupRowMenu(g) {
 export function groupMenuCallbacks() {
     return {
         onRename: function (grp) { if (_showRenameGroupDialog) _showRenameGroupDialog(grp.groupId, grp.name); },
-        onDelete: function (grp) { svc("DeleteGroupAsAdmin", grp.groupId).then(refreshPeers); },
-        onLeave: function (grp) { svc("LeaveGroup", grp.groupId).then(refreshPeers); },
+        onDelete: function (grp) { svc("DeleteGroupAsAdmin", grp.groupId).then(function () { forgetDraft(groupKey(grp.groupId)); return refreshPeers(); }); },
+        onLeave: function (grp) { svc("LeaveGroup", grp.groupId).then(function () { forgetDraft(groupKey(grp.groupId)); return refreshPeers(); }); },
         onRejoin: function (grp) { svc("RejoinGroup", grp.groupId).then(refreshPeers); },
         onDeleteLeft: function (grp) { svc("DeleteLeftGroup", grp.groupId).then(refreshPeers); }
     };

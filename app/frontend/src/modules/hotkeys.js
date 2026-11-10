@@ -22,11 +22,6 @@ function settingsOpen() {
     return !!(dom.settingsScreen && dom.settingsScreen.style.display !== "none");
 }
 
-function contextMenuOpen() {
-    var m = document.getElementById("context-menu");
-    return !!(m && m.style.display !== "none");
-}
-
 // visibleRows — строки списка слева, не скрытые фильтром поиска.
 function visibleRows() {
     return Array.prototype.filter.call(dom.contactsList.querySelectorAll(".contact-item"), function (el) {
@@ -70,7 +65,8 @@ document.addEventListener("keydown", function (e) {
         return;
     }
     if (settingsOpen()) {
-        if (e.key === "Escape" && !dialogOpen() && !contextMenuOpen()) {
+        // defaultPrevented — Esc уже потратили на контекстное меню (contextmenu.js)
+        if (e.key === "Escape" && !dialogOpen() && !e.defaultPrevented) {
             e.preventDefault();
             closeSettings();
         }
@@ -89,6 +85,9 @@ var search = document.getElementById("search-input");
 if (search) {
     search.addEventListener("keydown", function (e) {
         if (e.key === "Enter") {
+            // Пустой запрос и ссылка-приглашение (карточка «Вступить») списка
+            // не фильтруют — «первый найденный» там просто верхний чат.
+            if (e.isComposing || !search.value.trim() || dom.contactsList.querySelector(".join-card")) return;
             var first = visibleRows()[0];
             if (first) { e.preventDefault(); first.click(); }
         } else if (e.key === "Escape") {

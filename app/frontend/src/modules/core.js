@@ -17,7 +17,7 @@ var _routes = {
     GetNickname: "IdentityService", SetNickname: "IdentityService", GetMyContactURI: "IdentityService",
     SaveSetting: "IdentityService", GetSetting: "IdentityService",
     // NotifyService
-    ShowToast: "NotifyService",
+    ShowToast: "NotifyService", RequestAttention: "NotifyService",
     // NetworkService
     Connect: "NetworkService", Disconnect: "NetworkService",
     GetSignalServers: "NetworkService", AddSignalServer: "NetworkService", RemoveSignalServer: "NetworkService",

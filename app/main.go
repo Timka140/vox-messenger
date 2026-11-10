@@ -539,6 +539,8 @@ func main() {
 	// уведомлений), не в таскбаре. Крестик / Alt+F4 = отклонить (onClosed).
 	// Тема — из настроек, чтобы окно совпадало с главным.
 	callsSvc.SetWindowCreator(func(title string, w, h int, urlPath string, onClosed func()) services.CallPopup {
+		// У окна звонка нет кнопки в таскбаре — мигает главное окно.
+		_ = notifySvc.RequestAttention()
 		theme := "dark"
 		if v, err := identitySvc.GetSetting("ui_theme"); err == nil && v != "" {
 			theme = v

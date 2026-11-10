@@ -5,27 +5,50 @@
 // Раньше текст, набранный в одном чате, оставался в поле при переходе в другой
 // и мог уйти не тому адресату. Теперь при смене чата текст запоминается за
 // прежним чатом и возвращается при возврате, а в списке чатов неотправленный
-// текст виден как «Черновик: …». Хранится в localStorage (vox-drafts) и
-// переживает перезапуск. Ключи — как у mute.js: p:<peerId> / g:<groupId>.
+// текст виден как «Черновик: …». Ключи — как у mute.js: p:<peerId> / g:<groupId>.
+//
+// Хранение — настройка drafts в БД профиля (SaveSetting), как pinned_chats:
+// текст сообщений не должен лежать на диске открытым, а черновики одного
+// профиля — доставаться другому. Читается после входа (setup.js showChat).
 //
 // Порядок событий: vox:ui-chat-changed уходит из selectPeer/selectGroup ДО
 // смены state — в этот момент поле ещё принадлежит прежнему чату (saveCurrent);
 // restoreDraft зовут те же функции уже после смены state.
 
-import { state, dom, autoGrowTextarea } from "./core.js";
+import { svc, flog, state, dom, autoGrowTextarea } from "./core.js";
 import { peerKey, groupKey } from "./mute.js";
 
-const STORE = "vox-drafts";
+const SETTING = "drafts";
 let drafts = {};
-try { drafts = JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch (e) { drafts = {}; }
+// До loadDrafts в БД не пишем: пустой набор затёр бы сохранённые черновики.
+let loaded = false;
+
+// Первая версия держала черновики в localStorage открытым текстом — убираем.
+try { localStorage.removeItem("vox-drafts"); } catch (e) { /* хранилище недоступно */ }
 
 let persistTimer = null;
 function persistNow() {
-    try { localStorage.setItem(STORE, JSON.stringify(drafts)); } catch (e) { /* хранилище недоступно */ }
+    if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
+    if (!loaded) return;
+    svc("SaveSetting", SETTING, JSON.stringify(drafts)).catch(function (err) {
+        flog("ERR", "frontend.drafts", "save: " + err);
+    });
 }
 function persist() {
     if (persistTimer) clearTimeout(persistTimer);
-    persistTimer = setTimeout(function () { persistTimer = null; persistNow(); }, 300);
+    persistTimer = setTimeout(persistNow, 300);
+}
+
+// loadDrafts — после входа (setup.js showChat), рядом с loadChatPrefs.
+export function loadDrafts() {
+    return svc("GetSetting", SETTING).catch(function () { return ""; }).then(function (v) {
+        try {
+            var o = JSON.parse(v || "{}");
+            drafts = o && typeof o === "object" && !Array.isArray(o) ? o : {};
+        } catch (e) { drafts = {}; }
+        loaded = true;
+        restoreDraft();
+    });
 }
 
 // currentKey — ключ открытого чата; "" для mesh-эфира и пустого выбора.
@@ -52,6 +75,18 @@ export function setDraft(key, text) {
 
 export function clearDraft(key) {
     setDraft(key, "");
+}
+
+// forgetDraft — чат удалён (переписка, группа, исключение из группы): черновик
+// не должен всплыть снова. Если чат открыт — чистим и само поле, иначе текст
+// вернулся бы в черновики при первой же смене чата.
+export function forgetDraft(key) {
+    if (!key) return;
+    if (dom.messageInput && !editing() && currentKey() === key && dom.messageInput.value) {
+        dom.messageInput.value = "";
+        autoGrowTextarea();
+    }
+    clearDraft(key);
 }
 
 // Редактирование сообщения: в поле чужой текст, не черновик — не трогаем.
@@ -84,5 +119,5 @@ if (dom.messageInput) {
 }
 window.addEventListener("beforeunload", function () {
     saveCurrent();
-    persistNow();
+    if (persistTimer) persistNow();
 });

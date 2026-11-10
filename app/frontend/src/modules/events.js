@@ -17,6 +17,7 @@ import * as downloads from "./downloads.js";
 import { openApprovalModal } from "./attach_approve.js";
 import { isMuted, peerKey, groupKey } from "./mute.js";
 import { avatarURL } from "./avatar.js";
+import { forgetDraft } from "./drafts.js";
 import "./signal-banner.js";
 import "./narrow.js";
 
@@ -43,6 +44,14 @@ function showToast(text, title, opts) {
     }).catch(function (err) {
         console.warn("notify:", err);
     });
+}
+
+// attentionIfUnfocused — сообщение пришло в открытый чат, а окно не в фокусе:
+// карточки для открытого чата нет, но кнопка в панели задач мигнуть должна
+// (NotifyService.RequestAttention). Заглушённый чат и заблокированный — молчат.
+function attentionIfUnfocused(muteKey, senderId) {
+    if (document.hasFocus() || isMuted(muteKey) || isBlocked(senderId)) return;
+    svc("RequestAttention").catch(function (err) { console.warn("attention:", err); });
 }
 
 // toastPreview — текст карточки уведомления (макет Notifications): голосовое —
@@ -103,6 +112,8 @@ export function registerEvents() {
                 playNotificationSound();
                 var name = msg.nickname || (msg.senderId || "").substring(0, 8);
                 showToast(toastPreview(msg), name, { kind: "message", peerId: msg.senderId });
+            } else if (msg.senderId === state.selectedPeerID) {
+                attentionIfUnfocused(peerKey(msg.senderId), msg.senderId);
             }
         }
         // Track last message for DM contact list preview (not group messages)
@@ -310,6 +321,8 @@ export function registerEvents() {
                 var senderName = gMsg.senderName || (gMsg.senderId || "").substring(0, 8);
                 var groupName = event.data.groupName || (event.data.groupId || "").substring(0, 8);
                 showToast(senderName + ": " + toastPreview(gMsg), groupName, { kind: "group", groupId: event.data.groupId });
+            } else if (event.data.groupId === state.selectedGroupID) {
+                attentionIfUnfocused(groupKey(event.data.groupId), event.data.message.senderId);
             }
         }
         await refreshPeers();
@@ -381,6 +394,8 @@ export function registerEvents() {
     });
 
     Events.On("vox:group-kicked", function (event) {
+        // Кикнули нас — черновик в эту группу больше не нужен
+        if (event.data && event.data.groupId && !event.data.peerId) forgetDraft(groupKey(event.data.groupId));
         refreshPeers();
         if (event.data && event.data.groupId === state.selectedGroupID && !event.data.peerId) {
             // Кикнули нас — очищаем UI

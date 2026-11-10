@@ -15,6 +15,7 @@ import { t } from "./i18n.js";
 import { selectPeer } from "./contacts-list.js";
 import { buildDialogOverlay } from "./ui.js";
 import { showContextMenu } from "./contextmenu.js";
+import { isSendKey } from "./composer-keys.js";
 
 // Tunables — extracted as named constants so they're greppable and so the
 // "why this number" lives in one place rather than buried in handlers.
@@ -679,7 +680,8 @@ function bindMeshChatHandlers() {
     if (input) {
         input.addEventListener("input", updateCount);
         input.addEventListener("keydown", function (e) {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Enter или Ctrl+Enter — по настройке «Отправка сообщений»
+            if (isSendKey(e)) {
                 e.preventDefault();
                 doSend();
             }

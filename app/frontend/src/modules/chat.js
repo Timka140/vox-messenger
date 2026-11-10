@@ -449,6 +449,7 @@ document.getElementById("send-mesh-btn").addEventListener("click", async functio
     btn.disabled = true;
     dom.messageInput.value = "";
     dom.messageInput.style.height = "auto";
+    clearDraft(draftKey());
     try {
         var meshPeer = state.selectedPeerID;
         var result = await svc("SendMessageViaMesh", meshPeer, text);

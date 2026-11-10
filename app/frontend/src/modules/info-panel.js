@@ -21,6 +21,7 @@ import { updateInfoTabs, setCallRefreshInfoPanel, setCallSwitchInfoTab, setCallO
 import { showSuccess, showError } from "./toast.js";
 import { isMuted, toggleMuted, peerKey, groupKey, currentChatMuteKey } from "./mute.js";
 import { openSearch } from "./chat-search.js";
+import { forgetDraft } from "./drafts.js";
 import { showRenameGroupDialog } from "./messages.js";
 import { loadCommonGroupsFull, loadCalls, renderCalls, loadMeshNodeNum, buildMeshNodeEditor } from "./profile.js";
 import { populateMediaTab, resetMediaIfChatChanged, getMediaSummary } from "./info-media.js";
@@ -342,6 +343,7 @@ export function confirmDeleteChat(peerId, name) {
         svc("DeleteConversation", peerId).then(function () {
             if (state.selectedPeerID === peerId) dom.messagesDiv.innerHTML = "";
             delete state.lastMessages[peerId];
+            forgetDraft(peerKey(peerId));
             refreshPeers();
             showSuccess(t("info.chat_deleted"));
         }).catch(function (err) { showError(String(err && err.message || err)); });
